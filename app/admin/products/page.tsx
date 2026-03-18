@@ -1,20 +1,30 @@
 'use client'
 
 import Link from 'next/link'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ProtectedRoute } from '@/components/protected-route'
 import { products } from '@/lib/products'
 
 export default function AdminProductsPage() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="font-serif text-3xl text-foreground">
-              Products
-            </h1>
+    <ProtectedRoute requiredRole="ADMIN">
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="border-b border-border bg-card">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/admin/dashboard" className="flex items-center gap-2">
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </Link>
+              </Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <h1 className="font-serif text-3xl text-foreground">
+                Products
+              </h1>
             <Button asChild>
               <Link href="/admin/products/new">
                 <Plus className="w-4 h-4 mr-2" />
@@ -113,5 +123,6 @@ export default function AdminProductsPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }

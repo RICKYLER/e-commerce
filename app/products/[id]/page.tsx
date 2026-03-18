@@ -1,15 +1,16 @@
 'use client'
 
 import Image from 'next/image'
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { Heart, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
 import { getProductById, products } from '@/lib/products'
 
-export default function ProductPage({ params }: { params: { id: string } }) {
-  const product = getProductById(params.id)
+export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const product = getProductById(id)
   const [selectedSize, setSelectedSize] = useState(product?.sizes[0] || null)
   const [quantity, setQuantity] = useState(1)
   const [mainImage, setMainImage] = useState(product?.images[0] || '')

@@ -12,7 +12,7 @@ import {
   Sparkles,
   WandSparkles,
 } from 'lucide-react'
-import { Header } from '@/components/header'
+import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
 import { formatPHP } from '@/lib/currency'
 import type { Product } from '@/lib/products'
@@ -392,10 +392,8 @@ export default function DiscoveryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <main>
+    <StorefrontShell>
+      <>
         <section className="border-b border-border bg-[radial-gradient(circle_at_top_left,rgba(247,236,230,0.9),transparent_34%),linear-gradient(180deg,rgba(251,248,245,0.98),rgba(249,246,243,0.95))]">
           <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-20">
             <div className="space-y-8">
@@ -734,7 +732,7 @@ export default function DiscoveryPage() {
             </div>
           </div>
         </section>
-      </main>
-    </div>
+      </>
+    </StorefrontShell>
   )
 }

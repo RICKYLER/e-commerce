@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { AuthPageShell } from '@/components/auth-page-shell'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
+import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { getSafeRedirectPath } from '@/lib/auth'
-import { Spinner } from '@/components/ui/spinner'
 import { SITE_NAME } from '@/lib/site'
 
 function SignUpPageContent() {
@@ -48,10 +48,10 @@ function SignUpPageContent() {
       ? 'Member Purchase'
       : 'Create Your Account'
   const contextMessage = isCheckoutRedirect
-    ? 'Create your account to continue to checkout and place your order.'
+    ? 'Create your account to continue to checkout and place your perfume order.'
     : isProductRedirect
       ? 'Create your account to add this fragrance to your cart and continue shopping.'
-      : null
+      : 'Create an account to save favorites, manage orders, and build your own perfume shortlist.'
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
@@ -63,13 +63,13 @@ function SignUpPageContent() {
     }
   }, [isAuthenticated, authLoading, canAccessBackoffice, redirectTo, router])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target
+    setFormData((current) => ({ ...current, [name]: value }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError('')
     setSuccessMessage('')
 
@@ -115,47 +115,44 @@ function SignUpPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <AuthPageShell>
+      <section className="w-full">
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+          <article className="storefront-panel rounded-[2.25rem] p-7 sm:p-10">
+            <p className="storefront-eyebrow">{contextEyebrow}</p>
+            <h1 className="mt-4 text-5xl leading-tight text-foreground sm:text-6xl">Create Account</h1>
+            <p className="mt-4 text-base leading-8 text-foreground/68">{contextMessage}</p>
 
-      <div className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-md">
-          <div className="rounded-[30px] border border-border/70 bg-gradient-to-br from-card via-background to-muted/45 px-6 py-8 shadow-[0_28px_70px_rgba(88,72,58,0.09)] sm:px-8 sm:py-10">
-            <div className="text-center space-y-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-foreground/45">
-                {contextEyebrow}
-              </p>
-              <h1 className="font-serif text-4xl text-foreground">Create Account</h1>
-              <p className="text-sm leading-6 text-foreground/60">
-                Join {SITE_NAME} and discover your perfect scent
-              </p>
+            <div className="mt-8 space-y-4 rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(255,179,153,0.1),rgba(255,240,190,0.24))] p-5">
+              <p className="text-sm font-semibold text-foreground">What you unlock</p>
+              <ul className="space-y-3 text-sm leading-7 text-foreground/66">
+                <li>Save your fragrance wishlist across desktop and mobile.</li>
+                <li>Track perfume orders and delivery updates in one place.</li>
+                <li>Move from product page to checkout with less friction.</li>
+              </ul>
             </div>
+          </article>
 
-            {error && (
-              <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <article className="storefront-panel rounded-[2.25rem] px-6 py-8 sm:px-10 sm:py-10">
+            {error ? (
+              <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4">
                 <p className="text-sm text-red-600">{error}</p>
               </div>
-            )}
+            ) : null}
 
-            {successMessage && (
-              <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            {successMessage ? (
+              <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5">
                 <p className="text-sm leading-6 text-emerald-700">{successMessage}</p>
               </div>
-            )}
-
-            {contextMessage && (
-              <div className="mt-8 rounded-2xl border border-border/70 bg-background/70 p-5">
-                <p className="text-sm leading-6 text-foreground/70">{contextMessage}</p>
-              </div>
-            )}
+            ) : null}
 
             {verificationEmail ? (
-              <div className="mt-8 space-y-4">
-                <div className="rounded-2xl border border-border/70 bg-background/70 p-5">
-                  <p className="text-sm leading-6 text-foreground/70">
+              <div className="space-y-4">
+                <div className="rounded-[1.75rem] bg-muted/30 p-5">
+                  <p className="text-sm leading-7 text-foreground/68">
                     Open the verification email we sent to{' '}
-                    <span className="font-medium text-foreground">{verificationEmail}</span>. After confirming your
-                    email, you can sign in normally.
+                    <span className="font-semibold text-foreground">{verificationEmail}</span>. After confirming your
+                    address, you can sign in normally.
                   </p>
                 </div>
 
@@ -164,20 +161,20 @@ function SignUpPageContent() {
                   onClick={handleResendVerification}
                   disabled={resendLoading}
                   variant="outline"
-                  className="h-12 w-full"
+                  className="h-12 w-full rounded-2xl border-border/70 bg-white/70"
                 >
                   {resendLoading ? 'Resending verification...' : 'Resend Verification Email'}
                 </Button>
 
-                <Button asChild className="h-12 w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Link href={signinHref}>Go to Sign In</Link>
+                <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                  <Link href={signinHref}>Go To Sign In</Link>
                 </Button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label htmlFor="firstName" className="block text-sm font-medium text-foreground mb-2">
+                    <label htmlFor="firstName" className="text-sm font-medium text-foreground">
                       First Name
                     </label>
                     <input
@@ -190,12 +187,12 @@ function SignUpPageContent() {
                       suppressHydrationWarning
                       required
                       placeholder="John"
-                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12 w-full"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label htmlFor="lastName" className="block text-sm font-medium text-foreground mb-2">
+                    <label htmlFor="lastName" className="text-sm font-medium text-foreground">
                       Last Name
                     </label>
                     <input
@@ -208,13 +205,13 @@ function SignUpPageContent() {
                       suppressHydrationWarning
                       required
                       placeholder="Doe"
-                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12 w-full"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
                     Email Address
                   </label>
                   <input
@@ -227,12 +224,12 @@ function SignUpPageContent() {
                     suppressHydrationWarning
                     required
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
                     Password
                   </label>
                   <input
@@ -245,12 +242,12 @@ function SignUpPageContent() {
                     suppressHydrationWarning
                     required
                     placeholder="********"
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                     Confirm Password
                   </label>
                   <input
@@ -263,60 +260,57 @@ function SignUpPageContent() {
                     suppressHydrationWarning
                     required
                     placeholder="********"
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
                 </div>
 
-                <label className="flex items-center gap-3 cursor-pointer pt-2">
-                  <input type="checkbox" required suppressHydrationWarning className="w-4 h-4 rounded" />
-                  <span className="text-sm text-foreground/70">
-                    I agree to the{' '}
-                    <Link href="#" className="underline hover:text-foreground">
-                      Terms of Service
-                    </Link>{' '}
-                    and{' '}
-                    <Link href="#" className="underline hover:text-foreground">
-                      Privacy Policy
-                    </Link>
-                  </span>
+                <label className="flex items-center gap-3 pt-1 text-sm text-foreground/68">
+                  <input type="checkbox" required suppressHydrationWarning className="h-4 w-4 rounded border-border" />
+                  I agree to the account terms and the fragrance store privacy policy.
                 </label>
 
                 <Button
                   type="submit"
                   disabled={loading || authLoading}
-                  className="mt-2 h-12 w-full bg-accent hover:bg-accent/90 text-accent-foreground flex items-center justify-center gap-2"
-                  size="lg"
+                  className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
                 >
-                  {loading && <Spinner className="w-4 h-4" />}
-                  {loading ? 'Creating account...' : 'Create Account'}
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="h-4 w-4" />
+                      Creating account...
+                    </span>
+                  ) : (
+                    'Create Account'
+                  )}
                 </Button>
               </form>
             )}
 
-            <p className="mt-8 text-center text-foreground/60">
-              Already have an account?{' '}
-              <Link href={signinHref} className="text-accent hover:underline font-medium">
-                Sign in
-              </Link>
-            </p>
-          </div>
+            <div className="mt-8 border-t border-border/70 pt-6 text-center">
+              <p className="text-sm text-foreground/60">
+                Already have an account?{' '}
+                <Link href={signinHref} className="font-semibold text-primary transition hover:text-[#ff8a73]">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </article>
         </div>
-      </div>
-    </div>
+      </section>
+    </AuthPageShell>
   )
 }
 
 function SignUpPageFallback() {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+    <AuthPageShell>
+      <div className="flex min-h-[40vh] w-full items-center justify-center px-4">
         <div className="flex items-center gap-3 text-foreground/70">
           <Spinner className="h-5 w-5" />
           <p>Loading sign-up...</p>
         </div>
       </div>
-    </div>
+    </AuthPageShell>
   )
 }
 

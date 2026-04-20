@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronLeft, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
+import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
 import { formatPHP } from '@/lib/currency'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
@@ -390,9 +390,8 @@ function CheckoutContent() {
 
   if (authLoading || !isAuthenticated || !user || user.role !== 'USER' || isVerifyingPayment) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+      <StorefrontShell>
+        <div className="flex min-h-[42vh] items-center justify-center px-4">
           <div className="flex items-center gap-3 text-foreground/70">
             <Spinner className="h-5 w-5" />
             <p>
@@ -404,76 +403,72 @@ function CheckoutContent() {
             </p>
           </div>
         </div>
-      </div>
+      </StorefrontShell>
     )
   }
 
   if (cart.length === 0 && !orderPlaced) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <p className="text-xl text-foreground/60 mb-6">
+      <StorefrontShell>
+        <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6 lg:px-8">
+          <div className="storefront-panel rounded-[2rem] p-12">
+            <p className="mb-6 text-xl text-foreground/60">
             Your cart is empty. Add products before checking out.
-          </p>
-          <Button size="lg" asChild>
-            <Link href="/shop">Return to Shop</Link>
-          </Button>
+            </p>
+            <Button size="lg" className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+              <Link href="/shop">Return to Shop</Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </StorefrontShell>
     )
   }
 
   if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-center space-y-6">
-            <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto">
-              <Check className="w-8 h-8 text-accent-foreground" />
+      <StorefrontShell>
+        <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="storefront-panel space-y-6 rounded-[2rem] p-12 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+              <Check className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="font-serif text-4xl text-foreground">
-              Order Confirmed
-            </h1>
-            <p className="text-foreground/60 text-lg">
+            <h1 className="font-serif text-4xl text-foreground">Order Confirmed</h1>
+            <p className="text-lg text-foreground/60">
               Thank you for your purchase. Inventory has been updated and your order is now being processed.
             </p>
             <p className="text-sm text-foreground/50">Order #{orderNumber}</p>
-            <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <Button size="lg" asChild>
+            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+              <Button size="lg" className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
                 <Link href="/orders">Track My Order</Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
+              <Button size="lg" variant="outline" className="h-12 rounded-2xl border-border/70 bg-white/70 px-6" asChild>
                 <Link href="/shop">Continue Shopping</Link>
               </Button>
             </div>
           </div>
         </div>
-      </div>
+      </StorefrontShell>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <Link href="/cart" className="inline-flex items-center gap-2 text-accent hover:underline mb-8">
+    <StorefrontShell>
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <Link href="/cart" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-[#ff8a73]">
           <ChevronLeft className="w-4 h-4" />
           Back to Cart
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <div className="lg:col-span-2">
-            <div className="mb-12">
-              <div className="flex items-center justify-between mb-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="storefront-panel rounded-[2rem] p-6 sm:p-8 lg:col-span-2">
+            <div className="mb-10">
+              <div className="mb-8 flex items-center justify-between gap-4">
                 {STEPS.map((label, index) => (
                   <div key={label} className="flex items-center flex-1">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
+                      className={`flex h-11 w-11 items-center justify-center rounded-full font-medium ${
                         index <= step
-                          ? 'bg-accent text-accent-foreground'
+                          ? 'bg-primary text-primary-foreground'
                           : 'bg-muted text-foreground/50'
                       }`}
                     >
@@ -491,11 +486,9 @@ function CheckoutContent() {
             <form onSubmit={handleSubmit} className="space-y-8">
               {step === 0 && (
                 <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">
-                    Shipping Address
-                  </h2>
+                  <h2 className="font-serif text-2xl text-foreground">Shipping Address</h2>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <input
                       type="text"
                       name="firstName"
@@ -503,7 +496,7 @@ function CheckoutContent() {
                       value={formData.firstName}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     />
                     <input
                       type="text"
@@ -512,7 +505,7 @@ function CheckoutContent() {
                       value={formData.lastName}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     />
                   </div>
 
@@ -523,7 +516,7 @@ function CheckoutContent() {
                     value={formData.email}
                     required
                     readOnly
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
                   <p className="text-sm text-foreground/60">
                     Your order confirmation will be sent to your signed-in email.
@@ -536,10 +529,10 @@ function CheckoutContent() {
                     value={formData.address}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <input
                       type="text"
                       name="city"
@@ -547,7 +540,7 @@ function CheckoutContent() {
                       value={formData.city}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     />
                     <input
                       type="text"
@@ -556,11 +549,11 @@ function CheckoutContent() {
                       value={formData.state}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <input
                       type="text"
                       name="zip"
@@ -568,14 +561,14 @@ function CheckoutContent() {
                       value={formData.zip}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     />
                     <select
                       name="country"
                       value={formData.country}
                       onChange={handleChange}
                       required
-                      className="px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="storefront-input h-12"
                     >
                       <option value="PH">Philippines</option>
                       <option value="SG">Singapore</option>
@@ -589,7 +582,7 @@ function CheckoutContent() {
                       name="billingDifferent"
                       checked={formData.billingDifferent}
                       onChange={handleChange}
-                      className="w-4 h-4 rounded"
+                      className="h-4 w-4 rounded border-border"
                     />
                     <span className="text-sm text-foreground">
                       Billing address is different
@@ -600,18 +593,16 @@ function CheckoutContent() {
 
               {step === 1 && (
                 <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">
-                    Payment Method
-                  </h2>
+                  <h2 className="font-serif text-2xl text-foreground">Payment Method</h2>
 
                   <div className="grid gap-3">
                     {ONLINE_PAYMENT_METHODS.map((method) => (
                       <label
                         key={method}
-                        className={`flex items-center justify-between rounded-lg border px-4 py-4 ${
+                        className={`flex items-center justify-between rounded-[1.5rem] border px-4 py-4 ${
                           formData.paymentMethod === method
-                            ? 'border-accent bg-accent/10'
-                            : 'border-border'
+                            ? 'border-primary bg-primary/8'
+                            : 'border-border bg-white/55'
                         }`}
                       >
                         <div>
@@ -628,7 +619,7 @@ function CheckoutContent() {
                           value={method}
                           checked={formData.paymentMethod === method}
                           onChange={handleChange}
-                          className="w-4 h-4"
+                          className="h-4 w-4"
                         />
                       </label>
                     ))}
@@ -640,11 +631,11 @@ function CheckoutContent() {
                     placeholder="Reference note for your order (optional)"
                     value={formData.reference}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input h-12 w-full"
                   />
 
                   {isPaymongoCheckoutMethod(formData.paymentMethod) && (
-                    <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 text-sm text-foreground/75">
+                    <div className="rounded-[1.5rem] border border-primary/25 bg-primary/8 p-4 text-sm text-foreground/75">
                       You will be redirected to the secure PayMongo-hosted checkout after you confirm the order.
                       The checkout uses your account's enabled payment channels and prefers QR Ph when it is available.
                       If the account is still using test keys and only QR Ph is enabled, the app will ask for
@@ -657,18 +648,16 @@ function CheckoutContent() {
                     placeholder="Delivery notes or order instructions"
                     value={formData.notes}
                     onChange={handleChange}
-                    className="w-full min-h-28 px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="storefront-input min-h-28 w-full py-3"
                   />
                 </div>
               )}
 
               {step === 2 && (
                 <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">
-                    Review Order
-                  </h2>
+                  <h2 className="font-serif text-2xl text-foreground">Review Order</h2>
 
-                  <div className="space-y-4 bg-muted p-6 rounded-lg">
+                  <div className="space-y-4 rounded-[1.75rem] bg-muted/35 p-6">
                     <div>
                       <p className="text-sm text-foreground/60 mb-2">Shipping To</p>
                       <p className="text-foreground font-medium">
@@ -720,6 +709,7 @@ function CheckoutContent() {
                   <Button
                     type="button"
                     variant="outline"
+                    className="h-11 rounded-2xl border-border/70 bg-white/70"
                     onClick={() => setStep((current) => current - 1)}
                   >
                     Back
@@ -727,7 +717,7 @@ function CheckoutContent() {
                 )}
                 <Button
                   type="submit"
-                  className="ml-auto bg-accent hover:bg-accent/90 text-accent-foreground"
+                  className="ml-auto h-11 rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
                   disabled={hasUnavailableItems || isSubmittingPayment}
                 >
                   {step === STEPS.length - 1 ? (
@@ -759,10 +749,8 @@ function CheckoutContent() {
           </div>
 
           <div className="lg:col-span-1">
-            <div className="bg-muted rounded-lg p-6 sticky top-24 space-y-6">
-              <h2 className="font-serif text-xl text-foreground">
-                Order Summary
-              </h2>
+            <div className="storefront-panel sticky top-28 space-y-6 rounded-[2rem] p-6">
+              <h2 className="font-serif text-xl text-foreground">Order Summary</h2>
 
               <div className="space-y-3">
                 {orderItems.map((item) =>
@@ -794,7 +782,7 @@ function CheckoutContent() {
                   <span>{formatPHP(tax)}</span>
                 </div>
                 {isTestCart && (
-                  <p className="text-xs text-accent">
+                  <p className="text-xs text-primary">
                     Payment test item: tax and shipping waived.
                   </p>
                 )}
@@ -816,7 +804,7 @@ function CheckoutContent() {
           </div>
         </div>
       </div>
-    </div>
+    </StorefrontShell>
   )
 }
 
@@ -824,15 +812,14 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-background">
-          <Header />
-          <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+        <StorefrontShell>
+          <div className="flex min-h-[42vh] items-center justify-center px-4">
             <div className="flex items-center gap-3 text-foreground/70">
               <Spinner className="h-5 w-5" />
               <p>Loading checkout...</p>
             </div>
           </div>
-        </div>
+        </StorefrontShell>
       }
     >
       <CheckoutContent />

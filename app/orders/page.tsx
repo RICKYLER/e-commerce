@@ -1,19 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { Header } from '@/components/header'
 import { ProtectedRoute } from '@/components/protected-route'
+import { StorefrontPageHero } from '@/components/storefront-page-hero'
+import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
 
 const statusTone: Record<string, string> = {
-  Pending: 'bg-slate-100 text-slate-700',
-  Processing: 'bg-amber-100 text-amber-700',
-  'Ready for Dispatch': 'bg-indigo-100 text-indigo-700',
-  'Out for Delivery': 'bg-blue-100 text-blue-700',
-  Delivered: 'bg-green-100 text-green-700',
+  Pending: 'bg-[#ffe5de] text-[#b85b48]',
+  Processing: 'bg-[#fff0be] text-[#8f6b26]',
+  'Ready for Dispatch': 'bg-[#ffe8d9] text-[#9c624d]',
+  'Out for Delivery': 'bg-[#ffd6a6] text-[#7d5a1f]',
+  Delivered: 'bg-[#e6f4ea] text-[#2f7a4e]',
 }
 
 export default function OrdersPage() {
@@ -28,111 +29,99 @@ export default function OrdersPage() {
 
   return (
     <ProtectedRoute requiredRole="USER">
-      <div className="min-h-screen bg-background">
-        <Header />
+      <StorefrontShell>
+        <StorefrontPageHero
+          eyebrow="Order History"
+          title="My Orders"
+          description="Follow each online perfume order from payment through dispatch and delivery, with live item context along the way."
+        />
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="mb-10">
-            <h1 className="font-serif text-4xl text-foreground mb-3">My Orders</h1>
-            <p className="text-foreground/60">
-              Track your orders from processing through delivery with live availability context.
-            </p>
-          </div>
+        <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl">
+            {userOrders.length === 0 ? (
+              <div className="storefront-panel rounded-[2rem] p-12 text-center">
+                <p className="text-2xl text-foreground">No online orders are linked to {user?.email} yet.</p>
+                <Button className="mt-6 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                  <Link href="/shop">Browse Perfumes</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {userOrders.map((order) => (
+                  <article key={order.id} className="storefront-panel rounded-[2rem] p-6 sm:p-8">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="storefront-eyebrow">{order.id}</p>
+                        <h2 className="mt-3 text-3xl text-foreground">{order.status}</h2>
+                        <p className="mt-2 text-sm text-foreground/55">
+                          Placed on {new Date(order.createdAt).toLocaleString()}
+                        </p>
+                      </div>
 
-          {userOrders.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-card p-10 text-center">
-              <p className="text-lg text-foreground/70 mb-4">
-                No online orders are linked to {user?.email} yet.
-              </p>
-              <Button asChild>
-                <Link href="/shop">Browse Products</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {userOrders.map((order) => (
-                <article
-                  key={order.id}
-                  className="rounded-2xl border border-border bg-card p-6 shadow-sm"
-                >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-                        {order.id}
-                      </p>
-                      <h2 className="mt-2 font-serif text-2xl text-foreground">
-                        {order.status}
-                      </h2>
-                      <p className="mt-2 text-sm text-foreground/60">
-                        Placed on {new Date(order.createdAt).toLocaleString()}
-                      </p>
+                      <div className="md:text-right">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                            statusTone[order.status] ?? 'bg-muted text-foreground'
+                          }`}
+                        >
+                          {order.status}
+                        </span>
+                        <p className="mt-3 text-sm text-foreground/60">
+                          Total: <span className="font-semibold text-foreground">{formatPHP(order.total)}</span>
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-right">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                          statusTone[order.status] ?? 'bg-muted text-foreground'
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                      <p className="mt-3 text-sm text-foreground/60">
-                        Total: <span className="font-medium text-foreground">{formatPHP(order.total)}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">
-                        Tracking Timeline
-                      </h3>
+                    <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                       <div className="space-y-4">
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/48">
+                          Tracking Timeline
+                        </h3>
                         {order.timeline.map((entry) => (
                           <div
                             key={`${order.id}-${entry.status}-${entry.createdAt}`}
-                            className="rounded-xl border border-border bg-background/70 p-4"
+                            className="rounded-[1.5rem] bg-muted/28 p-4"
                           >
-                            <div className="flex items-center justify-between gap-4">
-                              <p className="font-medium text-foreground">{entry.status}</p>
-                              <p className="text-xs text-foreground/50">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="font-semibold text-foreground">{entry.status}</p>
+                              <p className="text-xs text-foreground/48">
                                 {new Date(entry.createdAt).toLocaleString()}
                               </p>
                             </div>
-                            <p className="mt-2 text-sm text-foreground/60">{entry.note}</p>
+                            <p className="mt-2 text-sm leading-7 text-foreground/62">{entry.note}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/48">
+                          Ordered Items
+                        </h3>
+                        {order.items.map((item) => (
+                          <div
+                            key={`${order.id}-${item.productId}-${item.size}`}
+                            className="rounded-[1.5rem] bg-muted/28 p-4"
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <p className="font-semibold text-foreground">{item.productName}</p>
+                              <p className="text-sm text-foreground/55">
+                                {item.quantity} x {item.size}ml
+                              </p>
+                            </div>
+                            <p className="mt-2 text-sm text-foreground/58">
+                              Current store availability: {getAvailableStock(item.productId)} unit(s)
+                            </p>
                           </div>
                         ))}
                       </div>
                     </div>
-
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">
-                        Ordered Items
-                      </h3>
-                      {order.items.map((item) => (
-                        <div
-                          key={`${order.id}-${item.productId}-${item.size}`}
-                          className="rounded-xl border border-border bg-background/70 p-4"
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <p className="font-medium text-foreground">{item.productName}</p>
-                            <p className="text-sm text-foreground/60">
-                              {item.quantity} x {item.size}ml
-                            </p>
-                          </div>
-                          <p className="mt-2 text-sm text-foreground/60">
-                            Current store availability: {getAvailableStock(item.productId)} unit(s)
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </StorefrontShell>
     </ProtectedRoute>
   )
 }

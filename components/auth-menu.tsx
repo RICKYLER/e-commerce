@@ -25,12 +25,12 @@ export function AuthMenu() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex gap-2">
-        <Button variant="outline" asChild>
+      <div className="flex gap-1.5 xl:gap-2">
+        <Button variant="outline" className="h-11 rounded-2xl border-border/70 bg-white/70 px-4 xl:px-5" asChild>
           <Link href="/auth/signin">Sign In</Link>
         </Button>
-        <Button asChild>
-          <Link href="/auth/signup">Sign Up</Link>
+        <Button className="h-11 rounded-2xl bg-primary px-4 xl:px-5 text-primary-foreground shadow-[0_12px_28px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73]" asChild>
+          <Link href="/auth/signup">Create Account</Link>
         </Button>
       </div>
     )
@@ -39,12 +39,12 @@ export function AuthMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2">
-          <User className="w-4 h-4" />
+        <Button variant="ghost" className="h-11 rounded-2xl border border-border/70 bg-white/75 px-4 text-foreground shadow-[0_12px_28px_rgba(145,84,73,0.08)] hover:bg-muted">
+          <User className="h-4 w-4" />
           <span className="hidden sm:inline text-sm">{user?.name}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-56 rounded-2xl border-border/70 bg-white/95 p-2 shadow-[0_20px_40px_rgba(145,84,73,0.14)]">
         <div className="px-2 py-1.5 text-sm">
           <div className="font-medium">{user?.name}</div>
           <div className="text-xs text-foreground/60">{user?.email}</div>
@@ -89,7 +89,7 @@ export function AuthMenu() {
             await logout()
             router.push('/')
           }}
-          className="text-red-600 cursor-pointer"
+          className="cursor-pointer text-red-600"
         >
           <LogOut className="w-4 h-4 mr-2" />
           Sign Out

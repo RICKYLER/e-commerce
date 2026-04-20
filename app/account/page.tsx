@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Header } from '@/components/header'
 import { ProtectedRoute } from '@/components/protected-route'
+import { StorefrontPageHero } from '@/components/storefront-page-hero'
+import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { useStore } from '@/lib/store-context'
@@ -19,47 +20,50 @@ export default function AccountPage() {
 
   return (
     <ProtectedRoute requiredRole="USER">
-      <div className="min-h-screen bg-background">
-        <Header />
+      <StorefrontShell>
+        <StorefrontPageHero
+          eyebrow="My Account"
+          title={user?.name ?? 'Customer Account'}
+          description="Review your perfume orders, active shipments, and recent delivery history from one calm account view."
+        />
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="rounded-2xl border border-border bg-card p-8">
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-              Account
-            </p>
-            <h1 className="mt-3 font-serif text-4xl text-foreground">{user?.name}</h1>
-            <p className="mt-2 text-foreground/60">{user?.email}</p>
+        <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl space-y-8">
+            <article className="storefront-panel rounded-[2rem] p-7 sm:p-9">
+              <p className="storefront-eyebrow">Account Details</p>
+              <p className="mt-3 text-lg text-foreground/72">{user?.email}</p>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-border bg-background/70 p-4">
-                <p className="text-sm font-medium text-foreground/60">Orders</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{userOrders.length}</p>
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                <div className="rounded-[1.5rem] bg-muted/30 p-5">
+                  <p className="text-sm font-medium text-foreground/55">Orders</p>
+                  <p className="mt-2 text-4xl text-foreground">{userOrders.length}</p>
+                </div>
+                <div className="rounded-[1.5rem] bg-muted/30 p-5">
+                  <p className="text-sm font-medium text-foreground/55">Active Orders</p>
+                  <p className="mt-2 text-4xl text-foreground">
+                    {userOrders.filter((order) => order.status !== 'Delivered').length}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] bg-muted/30 p-5">
+                  <p className="text-sm font-medium text-foreground/55">Delivered</p>
+                  <p className="mt-2 text-4xl text-foreground">
+                    {userOrders.filter((order) => order.status === 'Delivered').length}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-xl border border-border bg-background/70 p-4">
-                <p className="text-sm font-medium text-foreground/60">Active Orders</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">
-                  {userOrders.filter((order) => order.status !== 'Delivered').length}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-background/70 p-4">
-                <p className="text-sm font-medium text-foreground/60">Delivered</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">
-                  {userOrders.filter((order) => order.status === 'Delivered').length}
-                </p>
-              </div>
-            </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild>
-                <Link href="/orders">Track Orders</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/shop">Shop More</Link>
-              </Button>
-            </div>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button className="h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                  <Link href="/orders">Track Orders</Link>
+                </Button>
+                <Button variant="outline" className="h-11 rounded-2xl border-border/70 bg-white/70 px-6" asChild>
+                  <Link href="/shop">Shop More</Link>
+                </Button>
+              </div>
+            </article>
           </div>
-        </div>
-      </div>
+        </section>
+      </StorefrontShell>
     </ProtectedRoute>
   )
 }

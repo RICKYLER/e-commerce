@@ -3,10 +3,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
-import { Heart, ShoppingBag } from 'lucide-react'
+import { Heart, ShoppingBag, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
+import { StorefrontShell } from '@/components/storefront-shell'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
@@ -48,17 +48,19 @@ export default function ProductPage({
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex items-center justify-center py-40">
-          <p className="text-xl text-foreground/60">Product not found</p>
-        </div>
-      </div>
+      <StorefrontShell>
+        <section className="px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="storefront-panel rounded-[2rem] p-12 text-center">
+              <p className="text-2xl text-foreground">Product not found.</p>
+            </div>
+          </div>
+        </section>
+      </StorefrontShell>
     )
   }
 
-  const selectedSize =
-    product.sizes.find((size) => size.ml === selectedSizeMl) ?? product.sizes[0]
+  const selectedSize = product.sizes.find((size) => size.ml === selectedSizeMl) ?? product.sizes[0]
   const availableStock = getAvailableStock(product.id)
   const availability = getAvailabilityStatus(product.id)
   const displayAvailability = isArchived ? 'Archived' : availability
@@ -71,13 +73,14 @@ export default function ProductPage({
     isArchived
       ? 'bg-slate-200 text-slate-700'
       : availability === 'In Stock'
-      ? 'bg-green-100 text-green-700'
-      : availability === 'Low Stock'
-        ? 'bg-amber-100 text-amber-700'
-        : 'bg-red-100 text-red-700'
+        ? 'bg-[#ffe5de] text-[#b85b48]'
+        : availability === 'Low Stock'
+          ? 'bg-[#fff0be] text-[#8f6b26]'
+          : 'bg-rose-100 text-rose-700'
   const canShop = isAuthenticated && user?.role === 'USER'
   const authRedirectHref = `/auth/signin?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const registerRedirectHref = `/auth/signup?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
+  const wishlisted = isWishlisted(product.id)
 
   const handleAddToCart = async () => {
     setIsAddingToCart(true)
@@ -110,13 +113,11 @@ export default function ProductPage({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+    <StorefrontShell>
+      <section className="px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.96fr_1.04fr]">
           <div className="space-y-4">
-            <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+            <div className="storefront-panel relative aspect-square overflow-hidden rounded-[2.25rem]">
               <Image
                 src={mainImage || product.images[0]}
                 alt={product.name}
@@ -127,18 +128,19 @@ export default function ProductPage({
             </div>
 
             <div className="grid grid-cols-4 gap-4">
-              {product.images.map((img, idx) => (
+              {product.images.map((image, index) => (
                 <button
-                  key={img}
-                  onClick={() => setMainImage(img)}
-                  className={`relative aspect-square rounded-lg overflow-hidden bg-muted border-2 transition-colors ${
-                    (mainImage || product.images[0]) === img ? 'border-accent' : 'border-border'
+                  key={image}
+                  type="button"
+                  onClick={() => setMainImage(image)}
+                  className={`storefront-panel relative aspect-square overflow-hidden rounded-[1.5rem] ${
+                    (mainImage || product.images[0]) === image ? 'ring-2 ring-primary/55' : ''
                   }`}
-                  aria-label={`View product image ${idx + 1}`}
+                  aria-label={`View product image ${index + 1}`}
                 >
                   <Image
-                    src={img}
-                    alt={`${product.name} view ${idx + 1}`}
+                    src={image}
+                    alt={`${product.name} view ${index + 1}`}
                     fill
                     className="object-cover"
                   />
@@ -147,266 +149,249 @@ export default function ProductPage({
             </div>
           </div>
 
-          <div className="space-y-8">
-            <div>
-              <p className="text-sm font-medium text-accent uppercase tracking-wide mb-2">
-                {product.brand}
-              </p>
-              <h1 className="font-serif text-4xl sm:text-5xl text-foreground mb-4">
-                {product.name}
-              </h1>
+          <div className="space-y-6">
+            <div className="storefront-panel rounded-[2.25rem] p-7 sm:p-9">
+              <p className="storefront-eyebrow">{product.brand}</p>
+              <h1 className="mt-3 text-5xl leading-tight text-foreground sm:text-6xl">{product.name}</h1>
 
-              <div className="flex items-center gap-4 mb-6">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, index) => (
-                    <span
-                      key={index}
-                      className={`text-lg ${
-                        index < Math.floor(product.rating) ? 'text-accent' : 'text-muted'
-                      }`}
-                    >
-                      *
-                    </span>
-                  ))}
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {product.rating} ({product.reviewCount} reviews)
-                </span>
-              </div>
-
-              <p className="text-lg text-foreground/80 leading-relaxed mb-6">
-                {product.description}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${availabilityTone}`}>
+              <div className="mt-5 flex flex-wrap items-center gap-4">
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${availabilityTone}`}>
                   {displayAvailability}
                 </span>
-                <p className="text-sm text-foreground/60">
-                  {isArchived
-                    ? 'This product has been archived and is no longer available for checkout or POS sales.'
-                    : availability === 'Out of Stock'
-                    ? 'Inventory is currently unavailable for online and in-store sales.'
-                    : `${availableStock} unit(s) available across the store.`}
-                </p>
+                <span className="inline-flex items-center gap-2 text-sm text-foreground/58">
+                  <Star className="h-4 w-4 fill-primary text-primary" />
+                  <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+                  <span>({product.reviewCount} reviews)</span>
+                </span>
               </div>
-            </div>
 
-            <div>
-              <h3 className="font-medium text-foreground mb-4">Size</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {product.sizes.map((size) => (
-                  <button
-                    key={size.ml}
-                    type="button"
-                    onClick={() => setSelectedSizeMl(size.ml)}
-                    className={`py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
-                      selectedSize.ml === size.ml
-                        ? 'bg-accent text-accent-foreground border-accent'
-                        : 'bg-background border-border text-foreground hover:border-accent'
-                    }`}
+              <p className="mt-6 text-base leading-8 text-foreground/68 sm:text-lg">{product.description}</p>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {product.scentFamily.map((family) => (
+                  <span
+                    key={family}
+                    className="rounded-full bg-[#fff0be] px-3 py-1 text-xs font-medium text-foreground/72"
                   >
-                    {size.ml}ml
-                  </button>
+                    {family}
+                  </span>
                 ))}
               </div>
-            </div>
 
-            <div>
-              <h3 className="font-medium text-foreground mb-4">Quantity</h3>
-              <div className="flex items-center gap-4 w-fit">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-10 h-10 rounded-lg border border-border hover:bg-muted transition-colors"
-                  aria-label="Decrease quantity"
-                >
-                  -
-                </button>
-                <span className="w-8 text-center font-medium">{quantity}</span>
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.min(Math.max(1, availableStock), quantity + 1))}
-                  disabled={availableStock === 0}
-                  className="w-10 h-10 rounded-lg border border-border hover:bg-muted transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Increase quantity"
-                >
-                  +
-                </button>
-              </div>
-              {availableStock > 0 && (
-                <p className="mt-2 text-sm text-foreground/60">
-                  Max available right now: {availableStock}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div className="text-3xl font-serif text-foreground">
-                {formatPHP(selectedSize.price * quantity)}
-              </div>
-
-              {canShop ? (
-                <div className="flex gap-4">
-                  <Button
-                    size="lg"
-                    className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
-                    onClick={() => void handleAddToCart()}
-                    disabled={availableStock === 0 || isArchived || isAddingToCart}
-                  >
-                    <ShoppingBag className="w-5 h-5 mr-2" />
-                    {isArchived
-                      ? 'Archived'
-                      : availableStock === 0
-                        ? 'Out of Stock'
-                        : isAddingToCart
-                          ? 'Adding...'
-                          : 'Add to Cart'}
-                  </Button>
-                  <Button size="lg" variant="outline" className="px-6" onClick={() => void handleWishlist()}>
-                    <Heart className={`w-5 h-5 ${isWishlisted(product.id) ? 'fill-current' : ''}`} />
-                  </Button>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-card via-background to-muted/50 shadow-[0_24px_60px_rgba(88,72,58,0.08)]">
-                  <div className="border-b border-border/60 px-6 py-4 sm:px-7">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-foreground/45">
-                      Member Checkout
-                    </p>
-                  </div>
-                  <div className="space-y-5 px-6 py-6 sm:px-7 sm:py-7">
-                    <div className="space-y-2">
-                      <h2 className="font-serif text-3xl text-foreground">
-                        Sign in to purchase
-                      </h2>
-                      <p className="max-w-md text-sm leading-6 text-foreground/65">
-                        Create an account or sign in to add this fragrance to your cart and continue to checkout.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                    {authLoading ? (
-                      <>
-                        <Button className="h-12 sm:flex-1" disabled>
-                          Checking account...
-                        </Button>
-                        <Button variant="outline" className="h-12 sm:flex-1" disabled>
-                          Create Account
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button className="h-12 sm:flex-1" asChild>
-                          <Link href={authRedirectHref}>Sign In</Link>
-                        </Button>
-                        <Button variant="outline" className="h-12 sm:flex-1 border-border/80 bg-background/70" asChild>
-                          <Link href={registerRedirectHref}>Create Account</Link>
-                        </Button>
-                      </>
-                    )}
-                    </div>
-                    <p className="text-xs tracking-[0.16em] text-foreground/45 uppercase">
-                      Fast checkout, order tracking, and saved details.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-border pt-8 space-y-6">
-              <h3 className="font-serif text-xl text-foreground">Scent Profile</h3>
-
-              <div className="space-y-4">
+              <div className="mt-8 grid gap-6 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Top Notes</p>
-                  <div className="flex flex-wrap gap-2">
-                    {product.topNotes.map((note) => (
-                      <span key={note} className="bg-muted px-3 py-1 rounded-full text-sm text-foreground">
-                        {note}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Heart Notes</p>
-                  <div className="flex flex-wrap gap-2">
-                    {product.middleNotes.map((note) => (
-                      <span key={note} className="bg-muted px-3 py-1 rounded-full text-sm text-foreground">
-                        {note}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Base Notes</p>
-                  <div className="flex flex-wrap gap-2">
-                    {product.baseNotes.map((note) => (
-                      <span key={note} className="bg-muted px-3 py-1 rounded-full text-sm text-foreground">
-                        {note}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-6 pt-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Longevity</p>
-                  <div className="flex gap-1">
-                    {[...Array(5)].map((_, index) => (
-                      <div
-                        key={index}
-                        className={`h-2 flex-1 rounded-full ${
-                          index < Math.ceil(product.longevity / 2) ? 'bg-accent' : 'bg-muted'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Intensity</p>
-                  <div className="flex gap-1">
-                    {[...Array(5)].map((_, index) => (
-                      <div
-                        key={index}
-                        className={`h-2 flex-1 rounded-full ${
-                          index < product.intensity ? 'bg-accent' : 'bg-muted'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Gender</p>
-                  <p className="text-sm font-medium text-foreground capitalize">
-                    {product.gender}
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">
+                    Choose Size
                   </p>
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    {product.sizes.map((size) => (
+                      <button
+                        key={size.ml}
+                        type="button"
+                        onClick={() => setSelectedSizeMl(size.ml)}
+                        className={`rounded-[1.25rem] border px-4 py-3 text-sm font-semibold transition ${
+                          selectedSize.ml === size.ml
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-border/70 bg-white/72 text-foreground hover:border-primary/45'
+                        }`}
+                      >
+                        {size.ml}ml
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">
+                    Quantity
+                  </p>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-[1.25rem] border border-border/70 bg-white/72 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted"
+                    >
+                      -
+                    </button>
+                    <span className="w-10 text-center font-semibold text-foreground">{quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(Math.min(Math.max(1, availableStock), quantity + 1))}
+                      disabled={availableStock === 0}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm text-foreground/58">
+                    {isArchived
+                      ? 'This perfume has been archived and is not available for checkout.'
+                      : availability === 'Out of Stock'
+                        ? 'Currently unavailable online and in store.'
+                        : `${availableStock} unit(s) available right now.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 flex flex-col gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.18em] text-foreground/48">Selected Total</p>
+                  <p className="mt-2 text-4xl text-foreground">{formatPHP(selectedSize.price * quantity)}</p>
+                </div>
+
+                {canShop ? (
+                  <div className="flex gap-3">
+                    <Button
+                      size="lg"
+                      className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.28)] hover:bg-[#ff8a73]"
+                      onClick={() => void handleAddToCart()}
+                      disabled={availableStock === 0 || isArchived || isAddingToCart}
+                    >
+                      <ShoppingBag className="mr-2 h-4 w-4" />
+                      {isArchived
+                        ? 'Archived'
+                        : availableStock === 0
+                          ? 'Out Of Stock'
+                          : isAddingToCart
+                            ? 'Adding...'
+                            : 'Add To Cart'}
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="h-12 rounded-2xl border-border/70 bg-white/70 px-5"
+                      onClick={() => void handleWishlist()}
+                    >
+                      <Heart className={`h-5 w-5 ${wishlisted ? 'fill-primary text-primary' : ''}`} />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="storefront-soft-panel rounded-[1.75rem] p-5 sm:max-w-md">
+                    <p className="storefront-eyebrow">Member Checkout</p>
+                    <h2 className="mt-3 text-3xl text-foreground">Sign in to purchase</h2>
+                    <p className="mt-3 text-sm leading-7 text-foreground/66">
+                      Create an account or sign in to add this fragrance to your cart and continue to checkout.
+                    </p>
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                      {authLoading ? (
+                        <>
+                          <Button className="h-11 rounded-2xl" disabled>
+                            Checking account...
+                          </Button>
+                          <Button variant="outline" className="h-11 rounded-2xl" disabled>
+                            Create Account
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button className="h-11 rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                            <Link href={authRedirectHref}>Sign In</Link>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="h-11 rounded-2xl border-border/70 bg-white/70"
+                            asChild
+                          >
+                            <Link href={registerRedirectHref}>Create Account</Link>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="storefront-panel rounded-[2rem] p-7 sm:p-9">
+              <p className="storefront-eyebrow">Scent Profile</p>
+              <div className="mt-6 grid gap-6 md:grid-cols-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Top Notes</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {product.topNotes.map((note) => (
+                      <span key={note} className="rounded-full bg-muted/55 px-3 py-1 text-sm text-foreground">
+                        {note}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Heart Notes</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {product.middleNotes.map((note) => (
+                      <span key={note} className="rounded-full bg-muted/55 px-3 py-1 text-sm text-foreground">
+                        {note}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Base Notes</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {product.baseNotes.map((note) => (
+                      <span key={note} className="rounded-full bg-muted/55 px-3 py-1 text-sm text-foreground">
+                        {note}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-[1.5rem] bg-muted/28 p-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Longevity</p>
+                  <div className="mt-3 flex gap-1">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`longevity-${index}`}
+                        className={`h-2 flex-1 rounded-full ${
+                          index < Math.ceil(product.longevity / 2) ? 'bg-primary' : 'bg-border'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] bg-muted/28 p-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Intensity</p>
+                  <div className="mt-3 flex gap-1">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`intensity-${index}`}
+                        className={`h-2 flex-1 rounded-full ${
+                          index < product.intensity ? 'bg-primary' : 'bg-border'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.5rem] bg-muted/28 p-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Gender</p>
+                  <p className="mt-3 text-lg font-semibold capitalize text-foreground">{product.gender}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <section className="border-t border-border py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="font-serif text-3xl text-foreground mb-12">
-            Related Products
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8">
+            <p className="storefront-eyebrow">You May Also Like</p>
+            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Related Fragrances</h2>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
             {relatedProducts.map(
               (relatedProduct) =>
-                relatedProduct && (
-                  <ProductCard key={relatedProduct.id} product={relatedProduct} />
-                ),
+                relatedProduct && <ProductCard key={relatedProduct.id} product={relatedProduct} />,
             )}
           </div>
         </div>
       </section>
-    </div>
+    </StorefrontShell>
   )
 }

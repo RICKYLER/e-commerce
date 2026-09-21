@@ -1750,7 +1750,8 @@ async function loadOrdersForCustomer(actor: StoreActor) {
       } else {
         profileQuery = profileQuery.ilike('email', normalizedEmail)
       }
-      const { data: userProfile } = await profileQuery.maybeSingle()
+      const { data: userProfiles } = await profileQuery.limit(1)
+      const userProfile = userProfiles?.[0]
 
       if (userProfile?.phone && String(userProfile.phone).trim().length >= 7) {
         const cleanPhone = String(userProfile.phone).trim()

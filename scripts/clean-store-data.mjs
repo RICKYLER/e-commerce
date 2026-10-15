@@ -161,7 +161,8 @@ async function cleanStoreData() {
     inventory: [],
     cart: [],
     orders: [],
-    promotions: [],
+    posTransactions: [],
+    stockMovements: [],
   }
 
   const { error: snapErr } = await supabase.from('app_store_snapshots').upsert({
@@ -178,15 +179,17 @@ async function cleanStoreData() {
   if (pubSnapErr) console.warn('Error updating public_store_snapshots:', pubSnapErr.message)
   else console.log('✓ public_store_snapshots reset to clean empty state')
 
-  // 10. Update store_sync_meta
+  // 10. Update store_sync_meta to force-invalidate all caches
+  const { data: currentMeta } = await supabase.from('store_sync_meta').select('*').eq('id', 'default').maybeSingle()
+  const nextVer = Math.max(10, ((currentMeta?.backoffice_state_version || 0) + 10))
   await supabase.from('store_sync_meta').upsert({
     id: 'default',
-    backoffice_state_version: 1,
-    public_state_version: 1,
-    backoffice_snapshot_version: 1,
-    public_snapshot_version: 1,
+    backoffice_state_version: nextVer,
+    public_state_version: nextVer,
+    backoffice_snapshot_version: nextVer,
+    public_snapshot_version: nextVer,
   })
-  console.log('✓ store_sync_meta updated')
+  console.log(`✓ store_sync_meta updated to version ${nextVer} (cache invalidated)`)
 
   console.log('\n=== CLEANUP COMPLETED SUCCESSFULLY ===')
 }

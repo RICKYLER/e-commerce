@@ -605,291 +605,15 @@ function calculateTotals(items: CartItem[], source: OrderSource) {
 }
 
 export function createSampleState(catalog: Product[] = products): StoreState {
-  const catalogById = new Map(catalog.map((product) => [product.id, product]))
   const inventory = ensureInventoryRecords(catalog, [])
-
-  const createOrderItem = (productId: string, size: number, quantity: number) => {
-    const product = catalogById.get(productId)
-    const unitPrice =
-      product?.sizes.find((variant) => variant.ml === size)?.price ?? product?.price ?? 0
-
-    return {
-      productId,
-      productName: product?.name ?? 'Unknown Product',
-      size,
-      quantity,
-      unitPrice,
-    }
-  }
-
-
-  const onlineOrders: OrderRecord[] = [
-    {
-      id: 'WEB-240401-1051',
-      source: 'ONLINE',
-      customerName: 'Demo User',
-      customerEmail: DEMO_USER_EMAIL,
-      status: 'Processing',
-      paymentMethod: 'PayMongo',
-      paymentStatus: 'Paid',
-      createdAt: isoFromNow(0, -5),
-      subtotal: 460,
-      shipping: 0,
-      tax: 55.2,
-      total: 515.2,
-      shippingAddress: '221B Orchard Heights, Makati City',
-      notes: 'Customer requested gift wrapping.',
-      items: [createOrderItem('2', 75, 1), createOrderItem('3', 50, 1)],
-      timeline: [
-        {
-          status: 'Pending',
-          createdAt: isoFromNow(0, -5),
-          note: 'Order placed through the website.',
-        },
-        {
-          status: 'Processing',
-          createdAt: isoFromNow(0, -4),
-          note: 'Picking and packing has started.',
-        },
-      ],
-    },
-    {
-      id: 'WEB-240330-1052',
-      source: 'ONLINE',
-      customerName: 'Sarah Davis',
-      customerEmail: 'sarah.davis@example.com',
-      status: 'Out for Delivery',
-      paymentMethod: 'Card',
-      paymentStatus: 'Paid',
-      createdAt: isoFromNow(-2, -1),
-      subtotal: 235,
-      shipping: 75,
-      tax: 28.2,
-      total: 338.2,
-      shippingAddress: '17 Emerald Park, BGC, Taguig',
-      items: [createOrderItem('5', 50, 1)],
-      timeline: [
-        { status: 'Pending', createdAt: isoFromNow(-2, -1), note: 'Order placed through the website.' },
-        { status: 'Processing', createdAt: isoFromNow(-2), note: 'Store team confirmed stock allocation.' },
-        {
-          status: 'Shipped',
-          createdAt: isoFromNow(-1, -6),
-          note: 'Packed and turned over to courier.',
-        },
-        {
-          status: 'Out for Delivery',
-          createdAt: isoFromNow(0, -8),
-          note: 'Courier is en route to the customer.',
-        },
-      ],
-    },
-    {
-      id: 'WEB-240327-1053',
-      source: 'ONLINE',
-      customerName: 'Lisa Anderson',
-      customerEmail: 'lisa.anderson@example.com',
-      status: 'Delivered',
-      paymentMethod: 'PayPal',
-      paymentStatus: 'Paid',
-      createdAt: isoFromNow(-5, -2),
-      subtotal: 185,
-      shipping: 75,
-      tax: 22.2,
-      total: 282.2,
-      shippingAddress: '84 Palm Residences, Cebu City',
-      items: [createOrderItem('1', 30, 1)],
-      timeline: [
-        { status: 'Pending', createdAt: isoFromNow(-5, -2), note: 'Order placed through the website.' },
-        { status: 'Processing', createdAt: isoFromNow(-5, -1), note: 'Store team confirmed stock allocation.' },
-        {
-          status: 'Shipped',
-          createdAt: isoFromNow(-4, -6),
-          note: 'Packed and handed over to courier.',
-        },
-        {
-          status: 'Out for Delivery',
-          createdAt: isoFromNow(-4, -1),
-          note: 'Courier is en route to the customer.',
-        },
-        {
-          status: 'Delivered',
-          createdAt: isoFromNow(-3, -7),
-          note: 'Customer confirmed delivery.',
-        },
-      ],
-    },
-  ]
-
-  const posOrders: OrderRecord[] = [
-    {
-      id: 'POS-240401-2051',
-      source: 'POS',
-      customerName: 'Walk-in Customer',
-      customerEmail: 'walk-in@sprayandsniff.local',
-      status: 'Completed',
-      paymentMethod: 'Cash',
-      paymentStatus: 'Paid',
-      createdAt: isoFromNow(0, -3),
-      subtotal: 430,
-      shipping: 0,
-      tax: 51.6,
-      total: 481.6,
-      notes: 'Same-day in-store checkout.',
-      items: [createOrderItem('4', 100, 2)],
-      timeline: [
-        { status: 'Completed', createdAt: isoFromNow(0, -3), note: 'Point-of-sale transaction completed in store.' },
-      ],
-    },
-    {
-      id: 'POS-240331-2052',
-      source: 'POS',
-      customerName: 'Member Sale',
-      customerEmail: 'member@sprayandsniff.local',
-      status: 'Completed',
-      paymentMethod: 'Card',
-      paymentStatus: 'Paid',
-      createdAt: isoFromNow(-1, -5),
-      subtotal: 380,
-      shipping: 0,
-      tax: 45.6,
-      total: 425.6,
-      notes: 'Cross-sell bundle at the cashier desk.',
-      items: [createOrderItem('7', 30, 1), createOrderItem('5', 30, 1)],
-      timeline: [
-        { status: 'Completed', createdAt: isoFromNow(-1, -5), note: 'POS transaction completed in store.' },
-      ],
-    },
-  ]
-
-  const posTransactions: PosTransaction[] = [
-    {
-      id: 'TX-240401-3001',
-      orderId: 'POS-240401-2051',
-      cashierName: 'Store Staff',
-      paymentMethod: 'Cash',
-      createdAt: isoFromNow(0, -3),
-      subtotal: 430,
-      tax: 51.6,
-      total: 481.6,
-      itemsCount: 2,
-    },
-    {
-      id: 'TX-240331-3002',
-      orderId: 'POS-240331-2052',
-      cashierName: 'Store Staff',
-      paymentMethod: 'Card',
-      createdAt: isoFromNow(-1, -5),
-      subtotal: 380,
-      tax: 45.6,
-      total: 425.6,
-      itemsCount: 2,
-    },
-  ]
-
-  const stockMovements: StockMovement[] = [
-    {
-      id: 'MVT-240401-01',
-      productId: '2',
-      productName: catalogById.get('2')?.name ?? 'Dawn Light',
-      change: -1,
-      reason: 'online-sale',
-      actor: 'Web checkout',
-      createdAt: isoFromNow(0, -5),
-      resultingStock: 9,
-      note: 'Order WEB-240401-1051',
-    },
-    {
-      id: 'MVT-240401-02',
-      productId: '3',
-      productName: catalogById.get('3')?.name ?? 'Velvet Spice',
-      change: -1,
-      reason: 'online-sale',
-      actor: 'Web checkout',
-      createdAt: isoFromNow(0, -5),
-      resultingStock: 14,
-      note: 'Order WEB-240401-1051',
-    },
-    {
-      id: 'MVT-240401-03',
-      productId: '4',
-      productName: catalogById.get('4')?.name ?? 'Ocean Breeze',
-      change: -2,
-      reason: 'pos-sale',
-      actor: 'Store Staff',
-      createdAt: isoFromNow(0, -3),
-      resultingStock: 4,
-      note: 'POS-240401-2051',
-    },
-    {
-      id: 'MVT-240401-04',
-      productId: '7',
-      productName: catalogById.get('7')?.name ?? 'Silk Dreams',
-      change: -1,
-      reason: 'pos-sale',
-      actor: 'Store Staff',
-      createdAt: isoFromNow(-1, -5),
-      resultingStock: 2,
-      note: 'POS-240331-2052',
-    },
-    {
-      id: 'MVT-240331-05',
-      productId: '5',
-      productName: catalogById.get('5')?.name ?? 'Golden Hour',
-      change: -1,
-      reason: 'pos-sale',
-      actor: 'Store Staff',
-      createdAt: isoFromNow(-1, -5),
-      resultingStock: 11,
-      note: 'POS-240331-2052',
-    },
-    {
-      id: 'MVT-240330-06',
-      productId: '4',
-      productName: catalogById.get('4')?.name ?? 'Ocean Breeze',
-      change: 6,
-      reason: 'restock',
-      actor: 'Store Admin',
-      createdAt: isoFromNow(-2, -6),
-      resultingStock: 6,
-      note: 'Emergency refill for low stock line.',
-    },
-    {
-      id: 'MVT-240329-07',
-      productId: '8',
-      productName: catalogById.get('8')?.name ?? 'Stone & Steel',
-      change: -3,
-      reason: 'online-sale',
-      actor: 'Web checkout',
-      createdAt: isoFromNow(-3, -4),
-      resultingStock: 0,
-      note: 'Stock depleted after weekend promo.',
-    },
-    {
-      id: 'MVT-240328-08',
-      productId: '7',
-      productName: catalogById.get('7')?.name ?? 'Silk Dreams',
-      change: 4,
-      reason: 'manual-adjustment',
-      actor: 'Store Admin',
-      createdAt: isoFromNow(-4, -8),
-      resultingStock: 3,
-      note: 'Cycle count correction after shelf audit.',
-    },
-  ]
 
   return {
     catalog: syncCatalogStock(catalog, inventory),
     inventory,
     cart: [],
-    orders: [...onlineOrders, ...posOrders].sort(
-      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    ),
-    posTransactions: posTransactions.sort(
-      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    ),
-    stockMovements: stockMovements.sort(
-      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    ),
+    orders: [],
+    posTransactions: [],
+    stockMovements: [],
   }
 }
 
@@ -906,10 +630,10 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
   const inventory = hasStoredCatalog
     ? ensureInventoryRecords(catalogSource, storedState?.inventory ?? [])
     : ensureInventoryRecords(catalogSource, storedState?.inventory ?? seedState.inventory)
-  const orders = Array.isArray(storedState?.orders) ? storedState.orders : seedState.orders
+  const orders = Array.isArray(storedState?.orders) ? storedState.orders : []
   const posTransactions = Array.isArray(storedState?.posTransactions)
     ? storedState.posTransactions
-    : seedState.posTransactions
+    : []
   const ordersById = new Map(orders.map((order) => [order.id, order]))
 
   posTransactions.forEach((transaction) => {
@@ -933,7 +657,7 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
     posTransactions,
     stockMovements: Array.isArray(storedState?.stockMovements)
       ? storedState.stockMovements
-      : seedState.stockMovements,
+      : [],
   }
 }
 

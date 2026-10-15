@@ -27,7 +27,6 @@ const SEEDED_STOCK_LEVELS: Record<string, number> = {
   '6': 7,
   '7': 2,
   '8': 0,
-  [PAYMENT_TEST_PRODUCT_ID]: 50,
 }
 
 export const ONLINE_PAYMENT_METHODS = ['PayMongo', 'Cash on Delivery'] as const
@@ -312,11 +311,11 @@ export function createEmptyStoreState(): StoreState {
 export type StoreAction =
   | { type: 'addCatalogProduct'; product: Product; options?: AddCatalogProductOptions }
   | {
-      type: 'updateCatalogProduct'
-      productId: string
-      product: Product
-      options: UpdateCatalogProductOptions
-    }
+    type: 'updateCatalogProduct'
+    productId: string
+    product: Product
+    options: UpdateCatalogProductOptions
+  }
   | { type: 'removeCatalogProduct'; productId: string }
   | { type: 'updateInventory'; input: UpdateInventoryInput }
   | { type: 'adjustInventory'; input: AdjustInventoryInput }
@@ -330,14 +329,14 @@ export type StoreAction =
   | { type: 'createPosSale'; input: CreatePosSaleInput }
   | { type: 'cancelOwnOrder'; orderId: string }
   | {
-      type: 'updateOrderDelivery'
-      orderId: string
-      status: OrderStatus
-      courier?: string
-      trackingNumber?: string
-      deliveryNotes?: string
-      note?: string
-    }
+    type: 'updateOrderDelivery'
+    orderId: string
+    status: OrderStatus
+    courier?: string
+    trackingNumber?: string
+    deliveryNotes?: string
+    note?: string
+  }
   | { type: 'markOrderPaymentPaid'; orderId: string; actor?: string; note?: string }
   | { type: 'updateOrderStatus'; orderId: string; status: OrderStatus; actor?: string; note?: string }
 
@@ -505,8 +504,8 @@ function syncCatalogStock(catalog: Product[], inventory: InventoryRecord[]) {
     ...product,
     inStock: Boolean(
       inventoryMap.get(product.id) &&
-        !inventoryMap.get(product.id)?.isArchived &&
-        (inventoryMap.get(product.id)?.stock ?? 0) > 0,
+      !inventoryMap.get(product.id)?.isArchived &&
+      (inventoryMap.get(product.id)?.stock ?? 0) > 0,
     ),
   }))
 }
@@ -622,6 +621,7 @@ export function createSampleState(catalog: Product[] = products): StoreState {
       unitPrice,
     }
   }
+
 
   const onlineOrders: OrderRecord[] = [
     {
@@ -900,27 +900,16 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
     : currentCatalog.length > 0
       ? currentCatalog
       : products
-  const canonicalPaymentTestProduct = currentCatalog.find(
-    (product) => product.id === PAYMENT_TEST_PRODUCT_ID,
-  )
-  const catalogWithoutTestProduct = baseCatalog.filter(
-    (product) => product.id !== PAYMENT_TEST_PRODUCT_ID,
-  )
-  const catalogSource =
-    canonicalPaymentTestProduct
-      ? [canonicalPaymentTestProduct, ...catalogWithoutTestProduct]
-      : baseCatalog
+  const catalogSource = baseCatalog
 
   const seedState = createSampleState(catalogSource)
   const inventory = hasStoredCatalog
     ? ensureInventoryRecords(catalogSource, storedState?.inventory ?? [])
     : ensureInventoryRecords(catalogSource, storedState?.inventory ?? seedState.inventory)
-  const orders =
-    storedState?.orders && storedState.orders.length > 0 ? storedState.orders : seedState.orders
-  const posTransactions =
-    storedState?.posTransactions && storedState.posTransactions.length > 0
-      ? storedState.posTransactions
-      : seedState.posTransactions
+  const orders = Array.isArray(storedState?.orders) ? storedState.orders : seedState.orders
+  const posTransactions = Array.isArray(storedState?.posTransactions)
+    ? storedState.posTransactions
+    : seedState.posTransactions
   const ordersById = new Map(orders.map((order) => [order.id, order]))
 
   posTransactions.forEach((transaction) => {
@@ -929,7 +918,7 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
     }
 
     const seededOrder = seedState.orders.find((order) => order.id === transaction.orderId)
-    if (seededOrder) {
+    if (seededOrder && !Array.isArray(storedState?.orders)) {
       ordersById.set(seededOrder.id, seededOrder)
     }
   })
@@ -942,10 +931,9 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
       (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
     ),
     posTransactions,
-    stockMovements:
-      storedState?.stockMovements && storedState.stockMovements.length > 0
-        ? storedState.stockMovements
-        : seedState.stockMovements,
+    stockMovements: Array.isArray(storedState?.stockMovements)
+      ? storedState.stockMovements
+      : seedState.stockMovements,
   }
 }
 
@@ -1073,36 +1061,36 @@ export function performStoreAction(
 
       const updatedInventoryRecord: InventoryRecord = existingInventoryRecord
         ? {
-            ...existingInventoryRecord,
-            stock: clampToWholeNumber(action.options.stock),
-            reorderPoint:
-              typeof action.options.reorderPoint === 'number'
-                ? clampToWholeNumber(action.options.reorderPoint)
-                : existingInventoryRecord.reorderPoint,
-            overStockThreshold:
-              typeof action.options.overStockThreshold === 'number'
-                ? clampToWholeNumber(action.options.overStockThreshold)
-                : (existingInventoryRecord.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
-            location: action.options.location || existingInventoryRecord.location,
-            lastUpdated: timestamp,
-            lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
-          }
+          ...existingInventoryRecord,
+          stock: clampToWholeNumber(action.options.stock),
+          reorderPoint:
+            typeof action.options.reorderPoint === 'number'
+              ? clampToWholeNumber(action.options.reorderPoint)
+              : existingInventoryRecord.reorderPoint,
+          overStockThreshold:
+            typeof action.options.overStockThreshold === 'number'
+              ? clampToWholeNumber(action.options.overStockThreshold)
+              : (existingInventoryRecord.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
+          location: action.options.location || existingInventoryRecord.location,
+          lastUpdated: timestamp,
+          lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
+        }
         : {
-            productId: action.productId,
-            sku: createSku(updatedProduct, 0),
-            stock: clampToWholeNumber(action.options.stock),
-            reorderPoint: clampToWholeNumber(action.options.reorderPoint ?? 3),
-            overStockThreshold: clampToWholeNumber(action.options.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
-            location: action.options.location || DEFAULT_LOCATIONS[0],
-            lastUpdated: timestamp,
-            lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
-            isArchived: false,
-          }
+          productId: action.productId,
+          sku: createSku(updatedProduct, 0),
+          stock: clampToWholeNumber(action.options.stock),
+          reorderPoint: clampToWholeNumber(action.options.reorderPoint ?? 3),
+          overStockThreshold: clampToWholeNumber(action.options.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
+          location: action.options.location || DEFAULT_LOCATIONS[0],
+          lastUpdated: timestamp,
+          lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
+          isArchived: false,
+        }
 
       const nextInventory = existingInventoryRecord
         ? currentState.inventory.map((record) =>
-            record.productId === action.productId ? updatedInventoryRecord : record,
-          )
+          record.productId === action.productId ? updatedInventoryRecord : record,
+        )
         : ensureInventoryRecords(nextCatalog, [updatedInventoryRecord, ...currentState.inventory])
 
       return {
@@ -1189,19 +1177,19 @@ export function performStoreAction(
         difference === 0
           ? currentState.stockMovements
           : [
-              {
-                id: createMovementId(),
-                productId: product.id,
-                productName: product.name,
-                change: difference,
-                reason: movementReason,
-                actor: action.input.actor || getActorName(actor, 'Inventory update'),
-                createdAt: new Date().toISOString(),
-                resultingStock: nextRecord.stock,
-                note: action.input.note,
-              },
-              ...currentState.stockMovements,
-            ]
+            {
+              id: createMovementId(),
+              productId: product.id,
+              productName: product.name,
+              change: difference,
+              reason: movementReason,
+              actor: action.input.actor || getActorName(actor, 'Inventory update'),
+              createdAt: new Date().toISOString(),
+              resultingStock: nextRecord.stock,
+              note: action.input.note,
+            },
+            ...currentState.stockMovements,
+          ]
 
       return {
         nextState: {
@@ -1256,19 +1244,19 @@ export function performStoreAction(
         appliedChange === 0
           ? currentState.stockMovements
           : [
-              {
-                id: createMovementId(),
-                productId: product.id,
-                productName: product.name,
-                change: appliedChange,
-                reason: movementReason,
-                actor: action.input.actor,
-                createdAt: timestamp,
-                resultingStock: nextRecord.stock,
-                note: action.input.note,
-              },
-              ...currentState.stockMovements,
-            ]
+            {
+              id: createMovementId(),
+              productId: product.id,
+              productName: product.name,
+              change: appliedChange,
+              reason: movementReason,
+              actor: action.input.actor,
+              createdAt: timestamp,
+              resultingStock: nextRecord.stock,
+              note: action.input.note,
+            },
+            ...currentState.stockMovements,
+          ]
 
       return {
         nextState: {
@@ -1423,10 +1411,10 @@ export function performStoreAction(
 
       const nextCart = existingItem
         ? currentState.cart.map((cartItem) =>
-            cartItem.productId === action.item.productId && cartItem.size === action.item.size
-              ? { ...cartItem, quantity: cartItem.quantity + nextQuantity }
-              : cartItem,
-          )
+          cartItem.productId === action.item.productId && cartItem.size === action.item.size
+            ? { ...cartItem, quantity: cartItem.quantity + nextQuantity }
+            : cartItem,
+        )
         : [...currentState.cart, { ...action.item, quantity: nextQuantity }]
 
       return {

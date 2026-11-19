@@ -65,22 +65,35 @@ export default function AdminDashboard() {
   const todayRevenue = successfulPayments
     .filter((order) => new Date(order.createdAt).toDateString() === todayKey)
     .reduce((sum, order) => sum + order.total, 0)
-  const pendingPaymentOrders = orders.filter((order) => order.paymentStatus !== 'Paid')
+  const pendingPaymentOrders = orders.filter(
+    (order) => order.paymentStatus !== 'Paid' && order.status !== 'Cancelled',
+  )
   const lowStockCount = activeInventory.filter(
     (item) => item.stock > 0 && item.stock <= item.reorderPoint,
   ).length
   const outOfStockCount = activeInventory.filter((item) => item.stock === 0).length
   const openOnlineOrders = orders.filter(
-    (order) => order.source === 'ONLINE' && order.status !== 'Delivered',
+    (order) =>
+      order.source === 'ONLINE' &&
+      order.status !== 'Delivered' &&
+      order.status !== 'Cancelled',
   ).length
   const fulfillmentQueueCount = orders.filter(
     (order) =>
       order.source === 'ONLINE' &&
       ['Pending', 'Processing', 'Shipped'].includes(order.status),
   ).length
-  const todayPosTransactions = posTransactions.filter(
-    (transaction) => new Date(transaction.createdAt).toDateString() === todayKey,
+  const ordersById = useMemo(
+    () => new Map(orders.map((order) => [order.id, order])),
+    [orders],
   )
+  const todayPosTransactions = posTransactions.filter((transaction) => {
+    const linkedOrder = ordersById.get(transaction.orderId)
+    return (
+      new Date(transaction.createdAt).toDateString() === todayKey &&
+      linkedOrder?.status !== 'Cancelled'
+    )
+  })
   const todayPosRevenue = todayPosTransactions.reduce(
     (sum, transaction) => sum + transaction.total,
     0,
@@ -92,7 +105,12 @@ export default function AdminDashboard() {
     )
     .slice(0, 5)
   const recentOperationalOrders = [...orders]
-    .filter((order) => order.source === 'ONLINE' && order.status !== 'Delivered')
+    .filter(
+      (order) =>
+        order.source === 'ONLINE' &&
+        order.status !== 'Delivered' &&
+        order.status !== 'Cancelled',
+    )
     .sort(
       (left, right) =>
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
@@ -434,25 +452,39 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="space-y-3">
-                    {recentTransactions.map((transaction) => (
-                      <div
-                        key={transaction.id}
-                        className="rounded-xl border border-border bg-background/70 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <p className="font-medium text-foreground">{transaction.id}</p>
-                          <p className="text-sm text-foreground/60">
-                            {transaction.paymentMethod}
+                    {recentTransactions.map((transaction) => {
+                      const isVoided = ordersById.get(transaction.orderId)?.status === 'Cancelled'
+                      return (
+                        <div
+                          key={transaction.id}
+                          className="rounded-xl border border-border bg-background/70 p-4"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-foreground">{transaction.id}</p>
+                              {isVoided && (
+                                <span className="rounded bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                                  Voided
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-foreground/60">
+                              {transaction.paymentMethod}
+                            </p>
+                          </div>
+                          <p className="mt-2 text-sm text-foreground/60">
+                            {transaction.itemsCount} item(s) processed by {transaction.cashierName}
+                          </p>
+                          <p
+                            className={`mt-3 font-medium ${
+                              isVoided ? 'text-foreground/45 line-through' : 'text-foreground'
+                            }`}
+                          >
+                            {formatPHP(transaction.total)}
                           </p>
                         </div>
-                        <p className="mt-2 text-sm text-foreground/60">
-                          {transaction.itemsCount} item(s) processed by {transaction.cashierName}
-                        </p>
-                        <p className="mt-3 font-medium text-foreground">
-                          {formatPHP(transaction.total)}
-                        </p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </section>
 

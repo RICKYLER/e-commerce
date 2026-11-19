@@ -194,7 +194,7 @@ create table if not exists public.payment_records (
   tax numeric not null default 0,
   shipping numeric not null default 0,
   payment_method text not null,
-  payment_gateway text null,
+  payment_gateway text null,  
   payment_channel text null,
   checkout_session_id text null,
   reference text null,

@@ -77,6 +77,11 @@ function getPaymentStateTone(paymentStatus: OrderRecord['paymentStatus']) {
 
 function getPaymentDescription(order: OrderRecord) {
   if (order.source === 'POS') {
+    if (order.status === 'Cancelled') {
+      return order.paymentMethod === 'Cash'
+        ? 'POS sale voided. Cash refunded at drawer.'
+        : 'POS sale voided. Manual PayMongo refund follow-up may be required.'
+    }
     return 'Walk-in payment recorded at checkout.'
   }
 
@@ -110,6 +115,9 @@ function getLastTimelineEntry(order: OrderRecord) {
 }
 
 function needsRefundFollowUp(order: OrderRecord) {
+  if (order.source === 'POS' && order.paymentMethod === 'Cash') {
+    return false
+  }
   return order.actionAvailability?.needsRefundFollowUp ?? (order.status === 'Cancelled' && order.paymentStatus === 'Paid')
 }
 
@@ -645,12 +653,30 @@ export default function AdminOrdersPage() {
                               </>
                             ) : order.status === 'Cancelled' ? (
                               <span className="text-xs text-foreground/50">
-                                Customer cancellation locked this order.
+                                {order.source === 'POS'
+                                  ? 'POS sale voided and stock restored.'
+                                  : 'Customer cancellation locked this order.'}
                               </span>
                             ) : (
-                              <span className="text-xs text-foreground/50">
-                                Walk-in orders complete at checkout
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-foreground/50">
+                                  Walk-in orders complete at checkout
+                                </span>
+                                {user?.role === 'ADMIN' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                                    onClick={() => {
+                                      setAdminCancelOrderTarget(order)
+                                      setAdminCancelReason('')
+                                    }}
+                                  >
+                                    Void POS Sale
+                                  </Button>
+                                )}
+                              </div>
                             )}
 
                             {order.paymentStatus === 'Pending' && order.status !== 'Cancelled' ? (

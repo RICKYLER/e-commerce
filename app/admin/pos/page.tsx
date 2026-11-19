@@ -6,6 +6,7 @@ import QRCode from 'qrcode'
 import {
   ArrowLeft,
   Banknote,
+  Ban,
   Check,
   CheckCircle2,
   Copy,
@@ -13,26 +14,44 @@ import {
   Loader2,
   Minus,
   Plus,
+  Printer,
   QrCode,
   ReceiptText,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   X,
 } from 'lucide-react'
 import { AdminSidebar } from '@/components/admin-sidebar'
+import { PosReceiptModal } from '@/components/pos-receipt-modal'
 import { ProtectedRoute } from '@/components/protected-route'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { QuantityInput } from '@/components/ui/quantity-input'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
-import { isPaymentTestCart } from '@/lib/store-engine'
+import { isPaymentTestCart, type OrderRecord } from '@/lib/store-engine'
 import { type CartItem, getAuthHeaders, useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
 
 function generateClientSaleId() {
   return `pos_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+}
+
+interface QrModalItemSnapshot {
+  name: string
+  size: number
+  quantity: number
+  unitPrice: number
 }
 
 interface QrModalState {
@@ -42,17 +61,22 @@ interface QrModalState {
   qrImage: string
   environment?: string
   total: number
+  subtotal: number
+  tax: number
   customerName: string
+  items: QrModalItemSnapshot[]
 }
 
 export default function PosPage() {
   const { user } = useAuth()
   const {
+    adminCancelOrder,
     catalog,
     createPosSale,
     getAvailableStock,
     getInventoryRecord,
     getProductById,
+    orders,
     posTransactions,
   } = useStore()
 
@@ -76,6 +100,27 @@ export default function PosPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const isProcessingRef = useRef(false)
   const clientSaleIdRef = useRef(generateClientSaleId())
+
+  // Pre-commit verification & official receipt modals
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
+  const [receiptOrder, setReceiptOrder] = useState<OrderRecord | null>(null)
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
+  const [lastCashTendered, setLastCashTendered] = useState<number | undefined>(undefined)
+
+  const ordersById = useMemo(
+    () => new Map(orders.map((order) => [order.id, order])),
+    [orders],
+  )
+
+  const activeReceiptOrder = useMemo(() => {
+    if (!receiptOrder) return null
+    return ordersById.get(receiptOrder.id) ?? receiptOrder
+  }, [ordersById, receiptOrder])
+
+  const activeReceiptTransaction = useMemo(() => {
+    if (!activeReceiptOrder) return null
+    return posTransactions.find((tx) => tx.orderId === activeReceiptOrder.id) ?? null
+  }, [activeReceiptOrder, posTransactions])
 
   // QR Pay state
   const [isGeneratingQr, setIsGeneratingQr] = useState(false)
@@ -133,7 +178,13 @@ export default function PosPage() {
   const total = Math.round((subtotal + tax) * 100) / 100
 
   // Cash change calculation
-  const numericTendered = parseFloat(cashTendered)
+  const trimmedTendered = cashTendered.trim()
+  const numericTendered = trimmedTendered === '' ? Number.NaN : parseFloat(trimmedTendered)
+  const hasInvalidTenderedInput = trimmedTendered !== '' && (isNaN(numericTendered) || numericTendered < 0)
+  const hasCashShortage =
+    trimmedTendered !== '' && (isNaN(numericTendered) || numericTendered < total)
+  const effectiveCashTendered =
+    trimmedTendered !== '' && !isNaN(numericTendered) ? numericTendered : total
   const changeAmount = !isNaN(numericTendered) && numericTendered >= total ? numericTendered - total : 0
   const shortageAmount = !isNaN(numericTendered) && numericTendered < total ? total - numericTendered : 0
 
@@ -235,7 +286,23 @@ export default function PosPage() {
     setCashTendered('')
   }
 
-  // Handle Cash Payment Submission
+  // Open pre-commit verification modal before saving Cash sale to DB
+  const handleOpenVerifyModal = () => {
+    if (isProcessingRef.current || isProcessing) return
+
+    if (saleItems.length === 0) {
+      toast({
+        title: 'Cart is empty',
+        description: 'Please add at least one product to process payment.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsVerifyModalOpen(true)
+  }
+
+  // Handle Cash Payment Submission (after verification)
   const handleCashSubmit = async () => {
     if (isProcessingRef.current || isProcessing) return
 
@@ -248,11 +315,21 @@ export default function PosPage() {
       return
     }
 
+    if (hasCashShortage) {
+      toast({
+        title: 'Insufficient cash received',
+        description: 'Cash received must be at least the transaction total.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     isProcessingRef.current = true
     setIsProcessing(true)
 
     try {
       const clientSaleId = clientSaleIdRef.current
+      const tendered = effectiveCashTendered
       const result = await createPosSale({
         cashierName: user?.name || 'Store Staff',
         customerName: customerName.trim() || 'Walk-in Customer',
@@ -260,6 +337,7 @@ export default function PosPage() {
         notes,
         paymentMethod: 'Cash',
         clientSaleId,
+        tenderedAmount: tendered,
       })
 
       toast({
@@ -269,12 +347,19 @@ export default function PosPage() {
       })
 
       if (result.ok) {
+        setIsVerifyModalOpen(false)
         setSaleItems([])
         setCustomerName('')
         setNotes('')
         setQuantity(1)
         setCashTendered('')
         clientSaleIdRef.current = generateClientSaleId()
+
+        if (result.data) {
+          setLastCashTendered(tendered)
+          setReceiptOrder(result.data)
+          setIsReceiptModalOpen(true)
+        }
       }
     } catch (error) {
       toast({
@@ -286,6 +371,20 @@ export default function PosPage() {
       isProcessingRef.current = false
       setIsProcessing(false)
     }
+  }
+
+  // Handle Voiding / Cancelling a completed POS transaction
+  const handleVoidPosSale = async (orderId: string, reason: string) => {
+    const result = await adminCancelOrder(orderId, reason)
+    toast({
+      title: result.ok ? 'POS transaction voided' : 'Unable to void transaction',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    })
+    if (result.ok && result.data) {
+      setReceiptOrder(result.data)
+    }
+    return result.ok
   }
 
   // Handle Generating PayMongo QR Payment
@@ -343,6 +442,13 @@ export default function PosPage() {
         })
       }
 
+      const itemSnapshots: QrModalItemSnapshot[] = saleItems.map((item) => ({
+        name: getProductById(item.productId)?.name ?? 'Unknown Product',
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      }))
+
       setQrModalData({
         paymentIntentId: data.paymentIntentId,
         sessionId: data.sessionId,
@@ -350,7 +456,10 @@ export default function PosPage() {
         qrImage: qrDataUrl,
         environment: data.environment,
         total,
+        subtotal,
+        tax,
         customerName: customerName.trim() || 'Walk-in Customer',
+        items: itemSnapshots,
       })
 
       setQrPaymentStatus('awaiting')
@@ -399,7 +508,7 @@ export default function PosPage() {
           variant: 'default',
         })
 
-        // Auto-close modal after brief delay so cashier sees confirmation
+        // Auto-close QR modal and show the official receipt modal
         setTimeout(() => {
           setIsQrModalOpen(false)
           setQrModalData(null)
@@ -408,7 +517,12 @@ export default function PosPage() {
           setNotes('')
           setCashTendered('')
           clientSaleIdRef.current = generateClientSaleId()
-        }, 1800)
+          if (result.data) {
+            setLastCashTendered(undefined)
+            setReceiptOrder(result.data)
+            setIsReceiptModalOpen(true)
+          }
+        }, 1200)
       } else {
         toast({
           title: 'Error recording sale',
@@ -532,7 +646,7 @@ export default function PosPage() {
 
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
-      <div className="flex min-h-screen bg-background">
+      <div data-ui="pos-terminal" className="flex min-h-screen bg-background">
         <AdminSidebar />
         <div className="flex-1">
           {/* Header */}
@@ -732,7 +846,7 @@ export default function PosPage() {
                         return (
                           <div
                             key={`${item.productId}-${item.size}`}
-                            className="rounded-xl border border-border bg-background/70 p-4 transition-all"
+                            className="rounded-xl border border-border bg-background/70 p-4 transition-colors"
                           >
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0 flex-1">
@@ -835,7 +949,7 @@ export default function PosPage() {
 
                   {/* PAYMENT METHOD SELECTION */}
                   <div className="mt-6 border-t border-border pt-5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground/70 block mb-2.5">
+                    <label className="text-sm font-semibold text-foreground/80 block mb-2.5">
                       Payment Method
                     </label>
 
@@ -844,9 +958,9 @@ export default function PosPage() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('Cash')}
-                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
                           paymentMethod === 'Cash'
-                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent shadow-sm'
+                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent'
                             : 'border-border bg-background text-foreground/80 hover:bg-muted'
                         }`}
                       >
@@ -863,9 +977,9 @@ export default function PosPage() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('QR Pay')}
-                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors ${
                           paymentMethod === 'QR Pay'
-                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent shadow-sm'
+                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent'
                             : 'border-border bg-background text-foreground/80 hover:bg-muted'
                         }`}
                       >
@@ -875,7 +989,7 @@ export default function PosPage() {
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-sm flex items-center gap-1.5">
                             QR Pay
-                            <span className="rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.2 font-bold uppercase">
+                            <span className="rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 font-semibold">
                               PayMongo
                             </span>
                           </div>
@@ -972,8 +1086,8 @@ export default function PosPage() {
                 <div className="mt-6 pt-4 border-t border-border">
                   {paymentMethod === 'Cash' ? (
                     <Button
-                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold shadow-md transition-all disabled:opacity-50"
-                      onClick={handleCashSubmit}
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold transition-colors disabled:opacity-50"
+                      onClick={handleOpenVerifyModal}
                       disabled={saleItems.length === 0 || isProcessing}
                     >
                       {isProcessing ? (
@@ -983,14 +1097,14 @@ export default function PosPage() {
                         </>
                       ) : (
                         <>
-                          <Banknote className="mr-2 h-5 w-5" />
-                          Process Cash Payment &bull; {formatPHP(total)}
+                          <ShieldCheck className="mr-2 h-5 w-5" />
+                          Review &amp; Verify Cash Sale &bull; {formatPHP(total)}
                         </>
                       )}
                     </Button>
                   ) : (
                     <Button
-                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold shadow-md transition-all disabled:opacity-50"
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold transition-colors disabled:opacity-50"
                       onClick={handleGenerateQr}
                       disabled={saleItems.length === 0 || isGeneratingQr || isProcessing}
                     >
@@ -1011,48 +1125,84 @@ export default function PosPage() {
 
                 {/* Recent POS Activity */}
                 <div className="mt-8 border-t border-border pt-6">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/50 mb-3">
-                    Recent POS Activity
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-foreground/75">
+                      Recent POS Activity
+                    </h3>
+                    <span className="text-[11px] text-foreground/50">
+                      Click a sale for receipt or void
+                    </span>
+                  </div>
                   <div className="space-y-2.5">
                     {posTransactions.length === 0 ? (
                       <p className="text-xs text-foreground/50 italic">No recent transactions.</p>
                     ) : (
-                      posTransactions.slice(0, 3).map((transaction) => (
-                        <div
-                          key={transaction.id}
-                          className="rounded-xl border border-border/80 bg-background/50 p-3 flex items-center justify-between text-xs"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground">{transaction.id}</p>
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                  transaction.paymentMethod === 'QR Pay'
-                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                    : 'bg-muted text-foreground/70'
+                      posTransactions.slice(0, 5).map((transaction) => {
+                        const linkedOrder = ordersById.get(transaction.orderId)
+                        const isVoided = linkedOrder?.status === 'Cancelled'
+
+                        return (
+                          <button
+                            key={transaction.id}
+                            type="button"
+                            onClick={() => {
+                              if (!linkedOrder) {
+                                toast({
+                                  title: 'Receipt loading',
+                                  description: 'Order details are still syncing. Please try again in a moment.',
+                                })
+                                return
+                              }
+                              setLastCashTendered(undefined)
+                              setReceiptOrder(linkedOrder)
+                              setIsReceiptModalOpen(true)
+                            }}
+                            className="w-full text-left rounded-xl border border-border/80 bg-background/50 p-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-muted/60 hover:border-accent/40"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="font-medium text-foreground">{transaction.id}</p>
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                    transaction.paymentMethod === 'QR Pay'
+                                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                      : 'bg-muted text-foreground/70'
+                                  }`}
+                                >
+                                  {transaction.paymentMethod}
+                                </span>
+                                {isVoided && (
+                                  <span className="inline-flex items-center gap-1 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+                                    <Ban className="h-2.5 w-2.5" />
+                                    Voided
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-foreground/55 mt-0.5 truncate">
+                                {transaction.itemsCount} item(s) &bull; {linkedOrder?.customerName ?? 'Walk-in Customer'} &bull; {transaction.cashierName}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p
+                                className={`font-semibold ${
+                                  isVoided ? 'text-foreground/45 line-through' : 'text-foreground'
                                 }`}
                               >
-                                {transaction.paymentMethod}
-                              </span>
+                                {formatPHP(transaction.total)}
+                              </p>
+                              <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-foreground/50">
+                                <Printer className="h-2.5 w-2.5" />
+                                <span>
+                                  {new Date(transaction.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
                             </div>
-                            <p className="text-foreground/50 mt-0.5">
-                              {transaction.itemsCount} item(s) &bull; Cashier: {transaction.cashierName}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">
-                              {formatPHP(transaction.total)}
-                            </p>
-                            <p className="text-foreground/40 text-[10px] mt-0.5">
-                              {new Date(transaction.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                      ))
+                          </button>
+                        )
+                      })
                     )}
                   </div>
                 </div>
@@ -1062,10 +1212,195 @@ export default function PosPage() {
         </div>
       </div>
 
+      {/* PRE-COMMIT CASH SALE VERIFICATION MODAL */}
+      <Dialog open={isVerifyModalOpen} onOpenChange={setIsVerifyModalOpen}>
+        <DialogContent
+          data-ui="pos-verify-modal"
+          className="max-w-lg max-h-[90svh] overflow-y-auto bg-card text-foreground border-border"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-serif text-xl">
+              <ShieldCheck className="h-5 w-5 text-accent" />
+              Verify Sale Before Saving
+            </DialogTitle>
+            <DialogDescription>
+              Check the items, prices, and payment with the customer. Nothing is saved to the database until you confirm.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 text-sm">
+            {/* Customer & Cashier Summary */}
+            <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-background/60 p-3 text-xs">
+              <div>
+                <p className="text-foreground/55">Customer</p>
+                <p className="font-medium text-foreground">
+                  {customerName.trim() || 'Walk-in Customer'}
+                </p>
+              </div>
+              <div>
+                <p className="text-foreground/55">Cashier</p>
+                <p className="font-medium text-foreground">
+                  {user?.name || 'Store Staff'}
+                </p>
+              </div>
+              {notes.trim() && (
+                <div className="col-span-2">
+                  <p className="text-foreground/55">Cashier Notes</p>
+                  <p className="font-medium text-foreground">{notes.trim()}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Itemized Price Breakdown */}
+            <div className="rounded-xl border border-border bg-background/60 p-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-foreground/60">
+                    <th className="py-1.5 text-left font-medium">Item</th>
+                    <th className="py-1.5 text-right font-medium">Qty</th>
+                    <th className="py-1.5 text-right font-medium">Price</th>
+                    <th className="py-1.5 text-right font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saleItems.map((item) => {
+                    const product = getProductById(item.productId)
+                    return (
+                      <tr
+                        key={`${item.productId}-${item.size}`}
+                        className="border-b border-border/50 last:border-b-0"
+                      >
+                        <td className="py-2 pr-2">
+                          <p className="font-medium text-foreground">
+                            {product?.name ?? 'Unknown Product'}
+                          </p>
+                          <p className="text-[11px] text-foreground/55">{item.size}ml</p>
+                        </td>
+                        <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
+                        <td className="py-2 text-right text-foreground/80">
+                          {formatPHP(item.unitPrice)}
+                        </td>
+                        <td className="py-2 text-right font-medium text-foreground">
+                          {formatPHP(item.unitPrice * item.quantity)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals & Cash Tendered Verification */}
+            <div className="rounded-xl border border-border bg-background/60 p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between text-foreground/70">
+                <span>Subtotal</span>
+                <span>{formatPHP(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-foreground/70">
+                <span>12% VAT</span>
+                <span>+ {formatPHP(tax)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-border text-base font-semibold text-foreground">
+                <span>Total Amount Due</span>
+                <span className="text-accent">{formatPHP(total)}</span>
+              </div>
+
+              <div className="pt-3 border-t border-border space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="verify-cash-tendered" className="font-medium text-foreground">
+                    Cash Received (₱)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCashTendered(total.toString())}
+                      className="rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground/80 hover:bg-muted"
+                    >
+                      Exact
+                    </button>
+                    <input
+                      id="verify-cash-tendered"
+                      type="number"
+                      min={0}
+                      step="any"
+                      placeholder={total.toFixed(2)}
+                      value={cashTendered}
+                      onChange={(e) => setCashTendered(e.target.value)}
+                      className="w-28 rounded-lg border border-border bg-background px-2.5 py-1 text-right font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                </div>
+
+                {hasInvalidTenderedInput || hasCashShortage ? (
+                  <p className="text-xs font-medium text-destructive">
+                    {hasInvalidTenderedInput
+                      ? 'Enter a valid cash amount.'
+                      : `Cash received is short by ${formatPHP(shortageAmount)}. Adjust amount or cancel to edit items.`}
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-foreground/65">
+                      {trimmedTendered === '' ? 'Exact cash assumed:' : 'Change Due:'}
+                    </span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      {trimmedTendered === ''
+                        ? formatPHP(total)
+                        : formatPHP(changeAmount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isProcessing}
+              onClick={() => setIsVerifyModalOpen(false)}
+            >
+              Cancel / Edit Sale
+            </Button>
+            <Button
+              type="button"
+              disabled={isProcessing || hasInvalidTenderedInput || hasCashShortage}
+              onClick={() => void handleCashSubmit()}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving to Database...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Confirm &amp; Save Sale
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* OFFICIAL RECEIPT & VOID MODAL */}
+      <PosReceiptModal
+        open={isReceiptModalOpen}
+        onOpenChange={setIsReceiptModalOpen}
+        order={activeReceiptOrder}
+        transaction={activeReceiptTransaction}
+        actor={user ? { role: user.role } : null}
+        fallbackTendered={lastCashTendered}
+        onVoidSale={handleVoidPosSale}
+      />
+
       {/* PAYMONGO DYNAMIC QR PAY MODAL */}
       {isQrModalOpen && qrModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+        <div
+          data-ui="pos-qr-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-in fade-in duration-200"
+        >
+          <div className="relative w-full max-w-md max-h-[92svh] overflow-y-auto rounded-3xl border border-border bg-card p-6 space-y-5 animate-in zoom-in-95 duration-200">
             {/* Close Button */}
             <button
               type="button"
@@ -1090,26 +1425,47 @@ export default function PosPage() {
               </div>
               <h3 className="font-serif text-2xl text-foreground font-medium">Scan to Pay</h3>
               <p className="text-xs text-foreground/60 mt-1">
-                Scan using GCash, Maya, or any QR Ph compatible banking app
+                Verify items and total below. Nothing is saved until payment succeeds.
               </p>
             </div>
 
-            {/* Amount Banner */}
-            <div className="rounded-2xl border border-border bg-background/80 p-4 text-center">
-              <p className="text-xs uppercase tracking-wider text-foreground/50 font-medium">
-                Total Amount Due
-              </p>
-              <p className="text-3xl font-serif font-bold text-accent mt-1">
-                {formatPHP(qrModalData.total)}
-              </p>
-              <p className="text-xs text-foreground/60 mt-1">
-                Customer: <span className="font-medium text-foreground">{qrModalData.customerName}</span>
-              </p>
+            {/* Amount Banner & Itemized Verification Summary */}
+            <div className="rounded-2xl border border-border bg-background/80 p-4 space-y-3">
+              <div className="text-center">
+                <p className="text-xs font-medium text-foreground/60">
+                  Total Amount Due
+                </p>
+                <p className="text-3xl font-serif font-bold text-accent mt-1">
+                  {formatPHP(qrModalData.total)}
+                </p>
+                <p className="text-xs text-foreground/60 mt-1">
+                  Customer: <span className="font-medium text-foreground">{qrModalData.customerName}</span>
+                </p>
+              </div>
+
+              {qrModalData.items.length > 0 && (
+                <div className="border-t border-border/70 pt-2.5 space-y-1 text-xs">
+                  {qrModalData.items.map((item, idx) => (
+                    <div key={`${item.name}-${item.size}-${idx}`} className="flex justify-between gap-2 text-foreground/75">
+                      <span className="truncate">
+                        {item.quantity}x {item.name} ({item.size}ml)
+                      </span>
+                      <span className="font-medium text-foreground shrink-0">
+                        {formatPHP(item.unitPrice * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-[11px] text-foreground/55 pt-1">
+                    <span>Subtotal {formatPHP(qrModalData.subtotal)}</span>
+                    <span>VAT {formatPHP(qrModalData.tax)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* QR Code Container */}
             <div className="flex flex-col items-center justify-center">
-              <div className="relative rounded-2xl border-2 border-border bg-white p-4 shadow-inner">
+              <div className="relative rounded-2xl border-2 border-border bg-white p-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrModalData.qrImage}
@@ -1124,7 +1480,7 @@ export default function PosPage() {
                       <CheckCircle2 className="h-12 w-12" />
                     </div>
                     <p className="font-serif text-lg font-bold text-emerald-700">Payment Received!</p>
-                    <p className="text-xs text-emerald-600">Recording POS sale...</p>
+                    <p className="text-xs text-emerald-600">Generating receipt...</p>
                   </div>
                 )}
               </div>
@@ -1138,10 +1494,7 @@ export default function PosPage() {
                   </span>
                 ) : (
                   <span className="flex items-center gap-2 text-foreground/70">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
+                    <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                     Waiting for customer payment...
                   </span>
                 )}

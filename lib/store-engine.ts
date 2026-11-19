@@ -239,6 +239,7 @@ export interface CreatePosSaleInput {
   items: CartItem[]
   notes?: string
   clientSaleId?: string
+  tenderedAmount?: number
 }
 
 export interface AddCatalogProductOptions {
@@ -438,9 +439,106 @@ export function orderBelongsToActor(
 }
 
 export function getOrderNeedsRefundFollowUp(
-  order: Pick<OrderRecord, 'status' | 'paymentStatus'>,
+  order: Pick<OrderRecord, 'status' | 'paymentStatus' | 'source' | 'paymentMethod'>,
 ) {
-  return order.status === 'Cancelled' && order.paymentStatus === 'Paid'
+  if (order.status !== 'Cancelled' || order.paymentStatus !== 'Paid') {
+    return false
+  }
+  // In-store cash POS voids are refunded directly at the cash drawer.
+  if (order.source === 'POS' && order.paymentMethod === 'Cash') {
+    return false
+  }
+  return true
+}
+
+function getManilaDateKey(value: string | Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(typeof value === 'string' ? new Date(value) : value)
+}
+
+export function canActorVoidPosOrder(
+  order: Pick<OrderRecord, 'source' | 'status' | 'createdAt'>,
+  actor?: Pick<StoreActor, 'role'> | null,
+): { allowed: boolean; reason?: string } {
+  if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'STAFF')) {
+    return { allowed: false, reason: 'Only staff and administrators can void POS sales.' }
+  }
+  if (order.source !== 'POS') {
+    return { allowed: false, reason: 'Not a POS transaction.' }
+  }
+  if (order.status === 'Cancelled') {
+    return { allowed: false, reason: 'This POS transaction has already been voided.' }
+  }
+  if (actor.role === 'STAFF' && getManilaDateKey(order.createdAt) !== getManilaDateKey(new Date())) {
+    return {
+      allowed: false,
+      reason: 'Staff can only void same-day POS sales. Ask an administrator to void older sales.',
+    }
+  }
+  return { allowed: true }
+}
+
+export interface ParsedPosReceiptMetadata {
+  cashierNote?: string
+  tenderedAmount?: number
+  changeAmount?: number
+  paymongoRef?: string
+  paymongoChannel?: string
+  paymentId?: string
+}
+
+export function parsePosReceiptMetadata(notes?: string): ParsedPosReceiptMetadata {
+  if (!notes) {
+    return {}
+  }
+
+  let working = notes
+  let tenderedAmount: number | undefined
+  let changeAmount: number | undefined
+
+  const cashMatch = working.match(/\[POS-CASH:([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)\]/)
+  if (cashMatch) {
+    tenderedAmount = Number(cashMatch[1])
+    changeAmount = Number(cashMatch[2])
+    working = working.replace(cashMatch[0], '')
+  }
+
+  working = working.replace(/\[POS-REF:[^\]]+\]/g, '')
+
+  const segments = working
+    .split('|')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  let paymongoRef: string | undefined
+  let paymongoChannel: string | undefined
+  let paymentId: string | undefined
+  const userNotes: string[] = []
+
+  for (const segment of segments) {
+    if (segment.startsWith('PayMongo QR Ph ref:')) {
+      paymongoRef = segment.replace('PayMongo QR Ph ref:', '').trim() || undefined
+    } else if (segment.startsWith('PayMongo channel:')) {
+      paymongoChannel = segment.replace('PayMongo channel:', '').trim() || undefined
+    } else if (segment.startsWith('Payment ref:')) {
+      paymentId = segment.replace('Payment ref:', '').trim() || undefined
+    } else {
+      userNotes.push(segment)
+    }
+  }
+
+  return {
+    cashierNote: userNotes.join(' | ') || undefined,
+    tenderedAmount,
+    changeAmount,
+    paymongoRef,
+    paymongoChannel,
+    paymentId,
+  }
 }
 
 /**
@@ -1427,6 +1525,20 @@ export function performStoreAction(
 
       const timestamp = new Date().toISOString()
       const totals = calculateTotals(action.input.items, 'POS')
+
+      let cashMetaTag = ''
+      if (action.input.paymentMethod === 'Cash' && typeof action.input.tenderedAmount === 'number') {
+        const tendered = roundCurrency(action.input.tenderedAmount)
+        if (!Number.isFinite(tendered) || tendered < totals.total) {
+          return {
+            nextState: currentState,
+            result: { ok: false, message: 'Cash received must be at least the transaction total.' },
+          }
+        }
+        const change = roundCurrency(Math.max(0, tendered - totals.total))
+        cashMetaTag = `[POS-CASH:${tendered.toFixed(2)}:${change.toFixed(2)}]`
+      }
+
       const orderItems: OrderLineItem[] = action.input.items.map((item) => {
         const product = getProductById(item.productId)
         return {
@@ -1448,7 +1560,7 @@ export function performStoreAction(
       })
 
       const posRefTag = action.input.clientSaleId ? `[POS-REF:${action.input.clientSaleId}]` : ''
-      const combinedNotes = [action.input.notes?.trim(), posRefTag].filter(Boolean).join(' ')
+      const combinedNotes = [action.input.notes?.trim(), cashMetaTag, posRefTag].filter(Boolean).join(' ')
 
       const nextOrder: OrderRecord = {
         id: createOrderId('POS'),
@@ -1646,16 +1758,33 @@ export function performStoreAction(
         }
       }
 
-      if (existingOrder.status === 'Delivered' || existingOrder.status === 'Completed') {
+      if (
+        existingOrder.status === 'Delivered' ||
+        (existingOrder.status === 'Completed' && existingOrder.source !== 'POS')
+      ) {
         return {
           nextState: currentState,
-          result: { ok: false, message: 'Delivered or completed orders cannot be cancelled.' },
+          result: { ok: false, message: 'Delivered or completed online orders cannot be cancelled.' },
+        }
+      }
+
+      if (existingOrder.source === 'POS') {
+        const voidCheck = canActorVoidPosOrder(existingOrder, actor)
+        if (!voidCheck.allowed) {
+          return {
+            nextState: currentState,
+            result: { ok: false, message: voidCheck.reason || 'Unable to void this POS transaction.' },
+          }
         }
       }
 
       const timestamp = new Date().toISOString()
       const actorName = getActorName(actor, 'Store Admin')
-      const reason = action.reason?.trim() || 'Order cancelled by store administrator.'
+      const reason =
+        action.reason?.trim() ||
+        (existingOrder.source === 'POS'
+          ? 'POS transaction voided by store staff.'
+          : 'Order cancelled by store administrator.')
 
       const quantityByProduct = existingOrder.items.reduce<Record<string, number>>((totals, item) => {
         totals[item.productId] = (totals[item.productId] ?? 0) + item.quantity
@@ -1676,6 +1805,16 @@ export function performStoreAction(
         }
       })
 
+      const formattedReason = /[.!?]$/.test(reason) ? reason : `${reason}.`
+      const timelineNote =
+        existingOrder.source === 'POS'
+          ? existingOrder.paymentMethod === 'Cash'
+            ? `${formattedReason} Cash drawer refund / POS void recorded.`
+            : `${formattedReason} Manual PayMongo refund follow-up is required.`
+          : existingOrder.paymentStatus === 'Paid'
+            ? `${formattedReason} Manual PayMongo refund follow-up is required.`
+            : formattedReason
+
       const updatedOrder: OrderRecord = {
         ...existingOrder,
         status: 'Cancelled',
@@ -1687,10 +1826,7 @@ export function performStoreAction(
             createdAt: timestamp,
             actorName,
             actorId: actor?.id,
-            note:
-              existingOrder.paymentStatus === 'Paid'
-                ? `${reason} Manual PayMongo refund follow-up is required.`
-                : reason,
+            note: timelineNote,
           },
         ],
       }
@@ -1705,7 +1841,10 @@ export function performStoreAction(
           actor: actorName,
           createdAt: timestamp,
           resultingStock: nextInventory.find((record) => record.productId === item.productId)?.stock ?? item.quantity,
-          note: `Admin cancellation for ${existingOrder.id}: ${reason}`,
+          note:
+            existingOrder.source === 'POS'
+              ? `POS void for ${existingOrder.id}: ${reason}`
+              : `Admin cancellation for ${existingOrder.id}: ${reason}`,
         })),
         ...currentState.stockMovements,
       ]
@@ -1720,7 +1859,10 @@ export function performStoreAction(
         },
         result: {
           ok: true,
-          message: `Order ${existingOrder.id} has been cancelled and stock restored.`,
+          message:
+            existingOrder.source === 'POS'
+              ? `POS transaction ${existingOrder.id} has been voided and stock restored.`
+              : `Order ${existingOrder.id} has been cancelled and stock restored.`,
           data: updatedOrder,
         },
       }

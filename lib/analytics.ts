@@ -5,7 +5,7 @@ import type {
 } from '@/lib/store-context'
 
 export function isSuccessfulPaymentOrder(order: OrderRecord) {
-  return order.paymentStatus === 'Paid'
+  return order.paymentStatus === 'Paid' && order.status !== 'Cancelled'
 }
 
 function toDayKey(dateValue: string) {
